@@ -1,0 +1,101 @@
+{
+  "ha": {
+    "url": "wss://homeassistant.local:8123/api/websocket",
+    "outdoorTempEntity": "sensor.outdoor_temperature"
+  },
+  "deviceRoomLock": null,
+  "rooms": [
+    {
+      "id": "living",
+      "name": "Living Room",
+      "icon": "sofa",
+      "lights": [
+        { "name": "Ceiling", "entity": "light.living_ceiling" },
+        { "name": "Lamps", "entity": "light.living_lamps" },
+        { "name": "TV backlight", "entity": "light.living_tv_backlight" }
+      ],
+      "scenes": [
+        { "name": "Bright", "entity": "scene.living_bright" },
+        { "name": "Movie", "entity": "scene.living_movie" },
+        { "name": "Evening", "entity": "scene.living_evening" },
+        { "name": "Off", "entity": "scene.living_off" }
+      ],
+      "climate": { "entity": "climate.living_room" },
+      "media": { "entity": "media_player.living_sonos" },
+      "covers": [
+        { "name": "Blinds", "entity": "cover.living_blinds" }
+      ]
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen",
+      "icon": "kitchen",
+      "lights": [
+        { "name": "Spots", "entity": "light.kitchen_spots" },
+        { "name": "Under-cabinet", "entity": "light.kitchen_under_cabinet" }
+      ],
+      "scenes": [
+        { "name": "Cooking", "entity": "scene.kitchen_cooking" },
+        { "name": "Dim", "entity": "scene.kitchen_dim" },
+        { "name": "Off", "entity": "scene.kitchen_off" }
+      ],
+      "climate": { "entity": "climate.kitchen" },
+      "media": { "entity": "media_player.kitchen_echo" }
+    },
+    {
+      "id": "bedroom",
+      "name": "Bedroom",
+      "icon": "bed",
+      "lights": [
+        { "name": "Ceiling", "entity": "light.bedroom_ceiling" },
+        { "name": "Bedside L", "entity": "light.bedroom_bedside_left" },
+        { "name": "Bedside R", "entity": "light.bedroom_bedside_right" }
+      ],
+      "scenes": [
+        { "name": "Wake up", "entity": "scene.bedroom_wake_up" },
+        { "name": "Read", "entity": "scene.bedroom_read" },
+        { "name": "Night", "entity": "scene.bedroom_night" },
+        { "name": "Off", "entity": "scene.bedroom_off" }
+      ],
+      "climate": { "entity": "climate.bedroom_trv" },
+      "media": { "entity": "media_player.bedroom_homepod" },
+      "covers": [
+        { "name": "Curtains", "entity": "cover.bedroom_curtains" }
+      ]
+    },
+    {
+      "id": "office",
+      "name": "Office",
+      "icon": "office",
+      "lights": [
+        { "name": "Desk", "entity": "light.office_desk" },
+        { "name": "Ceiling", "entity": "light.office_ceiling" }
+      ],
+      "scenes": [
+        { "name": "Focus", "entity": "scene.office_focus" },
+        { "name": "Call", "entity": "scene.office_call" },
+        { "name": "Off", "entity": "scene.office_off" }
+      ],
+      "climate": { "entity": "climate.office" },
+      "media": { "entity": "media_player.office_desktop" },
+      "covers": [
+        { "name": "Blinds", "entity": "cover.office_blinds" }
+      ]
+    },
+    {
+      "id": "bath",
+      "name": "Bathroom",
+      "icon": "bath",
+      "lights": [
+        { "name": "Main", "entity": "light.bathroom_main" },
+        { "name": "Mirror", "entity": "light.bathroom_mirror" }
+      ],
+      "scenes": [
+        { "name": "Bright", "entity": "scene.bathroom_bright" },
+        { "name": "Relax", "entity": "scene.bathroom_relax" },
+        { "name": "Off", "entity": "scene.bathroom_off" }
+      ],
+      "climate": { "entity": "climate.bathroom_trv" }
+    }
+  ]
+}

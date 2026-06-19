@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home Assistant Room Remote — Mockup</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --panel-2: #1f242d;
+    --panel-3: #272d38;
+    --line: #2c333f;
+    --text: #eef2f7;
+    --muted: #8b94a3;
+    --accent: #ffb648;      /* warm "on" glow for lights */
+    --blue: #5aa9ff;
+    --green: #4ade80;
+    --red: #ff6b6b;
+    --radius: 20px;
+    font-size: 16px;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 700px at 50% -10%, #1b2230 0%, #0b0e13 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 16px 48px;
+  }
+
+  .intro {
+    max-width: 760px;
+    text-align: center;
+    margin-bottom: 22px;
+  }
+  .intro h1 { font-size: 1.25rem; margin: 0 0 6px; font-weight: 650; }
+  .intro p { color: var(--muted); margin: 0; font-size: 0.9rem; line-height: 1.5; }
+
+  /* Device frame */
+  .device {
+    width: 100%;
+    max-width: 920px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  }
+  .room-title { display: flex; flex-direction: column; gap: 2px; }
+  .room-title .name { font-size: 1.35rem; font-weight: 680; letter-spacing: -0.01em; }
+  .room-title .sub { font-size: 0.82rem; color: var(--muted); }
+  .clock { text-align: right; }
+  .clock .time { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .clock .meta { font-size: 0.78rem; color: var(--muted); }
+
+  /* Card grid */
+  .cards {
+    padding: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 620px) { .cards { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; }
+  .card-head .label { display: flex; align-items: center; gap: 10px; font-weight: 620; font-size: 1.02rem; }
+  .card-head .icon { width: 30px; height: 30px; display: grid; place-items: center; }
+  .card-head .icon svg { width: 22px; height: 22px; }
+  .card-head .status { font-size: 0.8rem; color: var(--muted); }
+
+  /* Toggle switch */
+  .switch {
+    width: 52px; height: 30px; border-radius: 30px;
+    background: var(--panel-3); border: 1px solid var(--line);
+    position: relative; cursor: pointer; flex: none;
+    transition: background .2s, border-color .2s;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #cfd6e0; transition: transform .2s, background .2s;
+  }
+  .switch.on { background: var(--green); border-color: var(--green); }
+  .switch.on::after { transform: translateX(22px); background: #fff; }
+  .switch.warm.on { background: var(--accent); border-color: var(--accent); }
+
+  /* Light rows */
+  .light-row { display: flex; flex-direction: column; gap: 8px; }
+  .light-row .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .light-row .nm { font-size: 0.95rem; }
+  .light-row .pct { font-size: 0.8rem; color: var(--muted); min-width: 38px; text-align: right; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; border-radius: 8px;
+    background: var(--panel-3); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  }
+  input[type=range].blue::-webkit-slider-thumb { border-color: var(--blue); }
+  input[type=range]:disabled { opacity: .4; }
+  input[type=range]::-moz-range-thumb {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent);
+  }
+
+  /* Chips / scenes */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    padding: 9px 14px; border-radius: 14px;
+    background: var(--panel-3); border: 1px solid var(--line);
+    font-size: 0.85rem; cursor: pointer; color: var(--text);
+    transition: background .15s, border-color .15s, transform .05s;
+  }
+  .chip:active { transform: scale(0.96); }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #1a1205; font-weight: 600; }
+
+  /* Climate */
+  .climate-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .setpoint { display: flex; align-items: center; gap: 14px; }
+  .round-btn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--panel-3); border: 1px solid var(--line);
+    color: var(--text); font-size: 1.5rem; cursor: pointer;
+    display: grid; place-items: center; transition: transform .05s, background .15s;
+  }
+  .round-btn:active { transform: scale(0.92); }
+  .temp-big { font-size: 2.6rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1; }
+  .temp-big span { font-size: 1.1rem; color: var(--muted); font-weight: 500; }
+  .climate-now { font-size: 0.82rem; color: var(--muted); }
+  .mode-row { display: flex; gap: 8px; }
+  .mode {
+    flex: 1; text-align: center; padding: 10px 0; border-radius: 12px;
+    background: var(--panel-3); border: 1px solid var(--line);
+    font-size: 0.82rem; cursor: pointer; color: var(--muted);
+  }
+  .mode.active { color: var(--text); font-weight: 600; }
+  .mode.active.heat { background: rgba(255,107,72,.18); border-color: var(--red); color: #ffb4a3; }
+  .mode.active.cool { background: rgba(90,169,255,.18); border-color: var(--blue); color: #bcdcff; }
+  .mode.active.auto { background: rgba(74,222,128,.15); border-color: var(--green); color: #b6f3cd; }
+
+  /* Media */
+  .media-now { display: flex; align-items: center; gap: 14px; }
+  .art {
+    width: 64px; height: 64px; border-radius: 14px; flex: none;
+    background: linear-gradient(135deg, #3a4658, #232a35);
+    display: grid; place-items: center; font-size: 1.6rem;
+  }
+  .media-meta { min-width: 0; }
+  .media-meta .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .media-meta .a { font-size: 0.83rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .media-meta .src { font-size: 0.72rem; color: var(--blue); margin-top: 3px; }
+  .transport { display: flex; align-items: center; justify-content: center; gap: 18px; }
+  .t-btn { background: none; border: none; color: var(--text); cursor: pointer; padding: 6px; }
+  .t-btn svg { width: 28px; height: 28px; }
+  .t-btn.play {
+    width: 56px; height: 56px; border-radius: 50%; background: var(--text); color: #11151b;
+    display: grid; place-items: center;
+  }
+  .t-btn.play svg { width: 26px; height: 26px; }
+  .vol-row { display: flex; align-items: center; gap: 12px; }
+  .vol-row svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+
+  /* Covers */
+  .cover-vis { display: flex; align-items: center; gap: 14px; }
+  .blind-frame {
+    width: 70px; height: 70px; border-radius: 12px; border: 2px solid var(--line);
+    background: linear-gradient(180deg, #9fb6d8 0%, #6f87aa 100%);
+    position: relative; overflow: hidden; flex: none;
+  }
+  .blind-slats { position: absolute; top: 0; left: 0; right: 0; background: var(--panel-3);
+    background-image: repeating-linear-gradient(180deg, #2c333f 0 6px, #232a33 6px 12px);
+    transition: height .35s ease; }
+  .cover-btns { display: flex; gap: 8px; }
+  .cover-btns .round-btn { width: 44px; height: 44px; font-size: 1.1rem; }
+
+  .empty { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 6px 0; }
+
+  /* Bottom room nav */
+  .roomnav {
+    display: flex; gap: 6px; padding: 12px 14px;
+    border-top: 1px solid var(--line); background: var(--panel);
+    overflow-x: auto;
+  }
+  .roomnav::-webkit-scrollbar { height: 0; }
+  .roomtab {
+    flex: 1 0 auto; min-width: 76px; text-align: center;
+    padding: 10px 14px; border-radius: 14px; cursor: pointer;
+    color: var(--muted); font-size: 0.82rem; border: 1px solid transparent;
+    transition: background .15s, color .15s;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+  }
+  .roomtab svg { width: 22px; height: 22px; }
+  .roomtab.active { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+
+  .hint { max-width: 760px; margin-top: 18px; color: var(--muted); font-size: 0.8rem; text-align: center; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="intro">
+    <h1>Room Remote — interactive mockup</h1>
+    <p>A single screen per room, wall-mountable or held in hand. Tap the room icons at the bottom to switch; only that room's controls are shown. Toggles, sliders, scenes and the thermostat all respond.</p>
+  </div>
+
+  <div class="device">
+    <div class="topbar">
+      <div class="room-title">
+        <div class="name" id="roomName">Living Room</div>
+        <div class="sub" id="roomSub">3 lights · 21.5°C · playing</div>
+      </div>
+      <div class="clock">
+        <div class="time" id="clock">--:--</div>
+        <div class="meta" id="outTemp">Outside 14°C</div>
+      </div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="roomnav" id="roomnav"></div>
+  </div>
+
+  <div class="hint">Mockup only — not connected to Home Assistant. In a real build each card maps to HA entities (light., climate., media_player., cover., scene.) on a Lovelace dashboard or a custom app, and the device would be a wall-or-table touchscreen.</div>
+
+<script>
+/* ---------- Icons ---------- */
+const I = {
+  bulb: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3Z"/></svg>',
+  thermo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 14V5a2 2 0 1 0-4 0v9a4 4 0 1 0 4 0Z"/></svg>',
+  media: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M10 9l5 3-5 3V9Z" fill="currentColor"/></svg>',
+  blind: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="3" width="16" height="14" rx="1"/><path d="M4 7h16M4 11h16M12 17v3"/></svg>',
+  scene: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.2 5.3L20 9l-4 3.8L17 19l-5-2.8L7 19l1-6.2L4 9l5.8-.7L12 3Z"/></svg>',
+  sofa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3M3 11a2 2 0 0 1 2 2v3h14v-3a2 2 0 0 1 2-2M5 16v2M19 16v2"/></svg>',
+  kitchen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3v6a3 3 0 0 0 6 0V3M9 3v18M16 3c-1.5 1-2 3-2 5s.5 3 2 3 2-1 2-3-.5-4-2-5ZM16 11v10"/></svg>',
+  bed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 18V8M3 12h18a0 0 0 0 1 0 0v6M21 18v-4M7 12V9a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v3"/></svg>',
+  office: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
+  bath: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12h16v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-3ZM6 12V6a2 2 0 0 1 2-2c1 0 1.5.5 2 1"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5L9 12l11 7z"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5l11 7L4 19z"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7L7 19z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
+  vol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4ZM16 9a3 3 0 0 1 0 6"/></svg>'
+};
+
+/* ---------- Room data model ---------- */
+const rooms = [
+  {
+    id: 'living', name: 'Living Room', icon: 'sofa',
+    lights: [
+      { nm: 'Ceiling', on: true, level: 80 },
+      { nm: 'Lamps', on: true, level: 45 },
+      { nm: 'TV backlight', on: false, level: 30 }
+    ],
+    scenes: ['Bright', 'Movie', 'Evening', 'Off'], scene: 'Evening',
+    climate: { now: 21.5, set: 21, mode: 'heat' },
+    media: { title: 'Wandering Star', artist: 'Portishead', src: 'Sonos · Living Room', playing: true, vol: 35, art: '🎵' },
+    cover: { nm: 'Blinds', pos: 60 }
+  },
+  {
+    id: 'kitchen', name: 'Kitchen', icon: 'kitchen',
+    lights: [
+      { nm: 'Spots', on: true, level: 100 },
+      { nm: 'Under-cabinet', on: true, level: 70 }
+    ],
+    scenes: ['Cooking', 'Dim', 'Off'], scene: 'Cooking',
+    climate: { now: 22.0, set: 20, mode: 'off' },
+    media: { title: 'BBC Radio 6 Music', artist: 'Live', src: 'Echo · Kitchen', playing: false, vol: 25, art: '📻' },
+    cover: null
+  },
+  {
+    id: 'bedroom', name: 'Bedroom', icon: 'bed',
+    lights: [
+      { nm: 'Ceiling', on: false, level: 60 },
+      { nm: 'Bedside L', on: true, level: 20 },
+      { nm: 'Bedside R', on: true, level: 20 }
+    ],
+    scenes: ['Wake up', 'Read', 'Night', 'Off'], scene: 'Read',
+    climate: { now: 19.0, set: 18, mode: 'heat' },
+    media: { title: 'Sleep Sounds', artist: 'Rain', src: 'Homepod · Bedroom', playing: true, vol: 15, art: '🌧️' },
+    cover: { nm: 'Curtains', pos: 100 }
+  },
+  {
+    id: 'office', name: 'Office', icon: 'office',
+    lights: [
+      { nm: 'Desk', on: true, level: 90 },
+      { nm: 'Ceiling', on: false, level: 50 }
+    ],
+    scenes: ['Focus', 'Call', 'Off'], scene: 'Focus',
+    climate: { now: 20.5, set: 21, mode: 'auto' },
+    media: { title: 'Deep Focus', artist: 'Spotify', src: 'Desktop · Office', playing: true, vol: 40, art: '🎧' },
+    cover: { nm: 'Blinds', pos: 30 }
+  },
+  {
+    id: 'bath', name: 'Bathroom', icon: 'bath',
+    lights: [
+      { nm: 'Main', on: false, level: 100 },
+      { nm: 'Mirror', on: false, level: 80 }
+    ],
+    scenes: ['Bright', 'Relax', 'Off'], scene: 'Off',
+    climate: { now: 21.0, set: 22, mode: 'heat' },
+    media: null,
+    cover: null
+  }
+];
+
+let current = 'living';
+
+/* ---------- Render ---------- */
+function room() { return rooms.find(r => r.id === current); }
+
+function render() {
+  const r = room();
+  document.getElementById('roomName').textContent = r.name;
+  const onCount = r.lights.filter(l => l.on).length;
+  const bits = [`${onCount}/${r.lights.length} lights`, `${r.climate.now.toFixed(1)}°C`];
+  if (r.media) bits.push(r.media.playing ? 'playing' : 'paused');
+  document.getElementById('roomSub').textContent = bits.join(' · ');
+
+  const cards = document.getElementById('cards');
+  cards.innerHTML = '';
+  cards.appendChild(lightsCard(r));
+  cards.appendChild(climateCard(r));
+  if (r.media) cards.appendChild(mediaCard(r));
+  if (r.cover) cards.appendChild(coverCard(r));
+
+  renderNav();
+}
+
+function cardEl(iconKey, label, statusText) {
+  const c = document.createElement('div');
+  c.className = 'card';
+  c.innerHTML = `<div class="card-head"><div class="label"><span class="icon">${I[iconKey]}</span>${label}</div><div class="status">${statusText || ''}</div></div>`;
+  return c;
+}
+
+function lightsCard(r) {
+  const c = cardEl('bulb', 'Lights', `${r.lights.filter(l=>l.on).length} on`);
+  r.lights.forEach((l, i) => {
+    const row = document.createElement('div');
+    row.className = 'light-row';
+    row.innerHTML = `
+      <div class="top">
+        <span class="nm">${l.nm}</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span class="pct">${l.on ? l.level + '%' : 'off'}</span>
+          <div class="switch warm ${l.on ? 'on' : ''}" data-i="${i}"></div>
+        </div>
+      </div>
+      <input type="range" min="1" max="100" value="${l.level}" data-i="${i}" ${l.on ? '' : 'disabled'}>`;
+    row.querySelector('.switch').onclick = e => { l.on = !l.on; render(); };
+    row.querySelector('input').oninput = e => {
+      l.level = +e.target.value;
+      row.querySelector('.pct').textContent = l.on ? l.level + '%' : 'off';
+    };
+    c.appendChild(row);
+  });
+  // scenes
+  const chips = document.createElement('div');
+  chips.className = 'chips';
+  r.scenes.forEach(s => {
+    const ch = document.createElement('div');
+    ch.className = 'chip' + (r.scene === s ? ' active' : '');
+    ch.textContent = s;
+    ch.onclick = () => { r.scene = s; applyScene(r, s); render(); };
+    chips.appendChild(ch);
+  });
+  c.appendChild(chips);
+  return c;
+}
+
+function applyScene(r, s) {
+  if (s === 'Off' || s === 'Night') { r.lights.forEach(l => l.on = false); if (s==='Night'){ r.lights.forEach((l,i)=>{ if(i>0){l.on=true;l.level=8;} }); } }
+  else if (s === 'Bright' || s === 'Cooking' || s === 'Focus' || s === 'Wake up') { r.lights.forEach(l => { l.on = true; l.level = s==='Wake up'?60:100; }); }
+  else if (s === 'Movie' || s === 'Evening' || s === 'Dim' || s === 'Relax' || s === 'Read') { r.lights.forEach(l => { l.on = true; l.level = 30; }); }
+}
+
+function climateCard(r) {
+  const c = cardEl('thermo', 'Climate', `now ${r.climate.now.toFixed(1)}°C`);
+  const main = document.createElement('div');
+  main.className = 'climate-main';
+  main.innerHTML = `
+    <div>
+      <div class="temp-big">${r.climate.set}<span>°C</span></div>
+      <div class="climate-now">Target temperature</div>
+    </div>
+    <div class="setpoint">
+      <button class="round-btn" data-d="-1">−</button>
+      <button class="round-btn" data-d="1">+</button>
+    </div>`;
+  main.querySelectorAll('button').forEach(b => b.onclick = () => {
+    r.climate.set = Math.max(5, Math.min(30, r.climate.set + (+b.dataset.d)));
+    render();
+  });
+  c.appendChild(main);
+  const modes = document.createElement('div');
+  modes.className = 'mode-row';
+  [['heat','Heat'],['cool','Cool'],['auto','Auto'],['off','Off']].forEach(([m, lbl]) => {
+    const el = document.createElement('div');
+    el.className = 'mode ' + m + (r.climate.mode === m ? ' active' : '');
+    el.textContent = lbl;
+    el.onclick = () => { r.climate.mode = m; render(); };
+    modes.appendChild(el);
+  });
+  c.appendChild(modes);
+  return c;
+}
+
+function mediaCard(r) {
+  const m = r.media;
+  const c = cardEl('media', 'Media', m.playing ? 'playing' : 'paused');
+  const now = document.createElement('div');
+  now.className = 'media-now';
+  now.innerHTML = `
+    <div class="art">${m.art}</div>
+    <div class="media-meta">
+      <div class="t">${m.title}</div>
+      <div class="a">${m.artist}</div>
+      <div class="src">${m.src}</div>
+    </div>`;
+  c.appendChild(now);
+  const tr = document.createElement('div');
+  tr.className = 'transport';
+  tr.innerHTML = `
+    <button class="t-btn">${I.prev}</button>
+    <button class="t-btn play">${m.playing ? I.pause : I.play}</button>
+    <button class="t-btn">${I.next}</button>`;
+  tr.querySelector('.play').onclick = () => { m.playing = !m.playing; render(); };
+  c.appendChild(tr);
+  const vol = document.createElement('div');
+  vol.className = 'vol-row';
+  vol.innerHTML = `${I.vol}<input type="range" class="blue" min="0" max="100" value="${m.vol}">`;
+  vol.querySelector('input').oninput = e => { m.vol = +e.target.value; };
+  c.appendChild(vol);
+  return c;
+}
+
+function coverCard(r) {
+  const cov = r.cover;
+  const c = cardEl('blind', cov.nm, `${cov.pos}% open`);
+  const vis = document.createElement('div');
+  vis.className = 'cover-vis';
+  vis.innerHTML = `
+    <div class="blind-frame"><div class="blind-slats" style="height:${100-cov.pos}%"></div></div>
+    <div style="flex:1;">
+      <input type="range" min="0" max="100" value="${cov.pos}" class="blue">
+      <div class="cover-btns" style="margin-top:12px;">
+        <button class="round-btn" title="Open">▲</button>
+        <button class="round-btn" title="Stop">■</button>
+        <button class="round-btn" title="Close">▼</button>
+      </div>
+    </div>`;
+  const slats = vis.querySelector('.blind-slats');
+  const rng = vis.querySelector('input');
+  const setPos = v => { cov.pos = v; rng.value = v; slats.style.height = (100 - v) + '%'; c.querySelector('.status').textContent = v + '% open'; };
+  rng.oninput = e => setPos(+e.target.value);
+  const btns = vis.querySelectorAll('button');
+  btns[0].onclick = () => setPos(100);
+  btns[2].onclick = () => setPos(0);
+  c.appendChild(vis);
+  return c;
+}
+
+function renderNav() {
+  const nav = document.getElementById('roomnav');
+  nav.innerHTML = '';
+  rooms.forEach(r => {
+    const t = document.createElement('div');
+    t.className = 'roomtab' + (r.id === current ? ' active' : '');
+    t.innerHTML = `${I[r.icon]}<span>${r.name.split(' ')[0]}</span>`;
+    t.onclick = () => { current = r.id; render(); };
+    nav.appendChild(t);
+  });
+}
+
+/* ---------- Clock ---------- */
+function tick() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+setInterval(tick, 1000); tick();
+
+render();
+</script>
+</body>
+</html>
