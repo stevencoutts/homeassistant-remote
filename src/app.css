@@ -477,20 +477,6 @@ input[type="range"].blue::-moz-range-thumb {
   padding: 6px 0;
 }
 
-/* Disconnected / error overlay */
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: 32px;
-  background: rgba(8, 10, 14, 0.92);
-  color: var(--muted);
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
 .header-right {
   display: flex;
   align-items: center;

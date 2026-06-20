@@ -19,7 +19,7 @@ if (browser) {
   });
 }
 
-// Derived room list: populated by startHa() from registries + entity states.
+// Derived room list: populated by connectLive() or startMock() from registries + entity states.
 export const rooms = writable<Room[]>([]);
 
 // Connection status indicator.
