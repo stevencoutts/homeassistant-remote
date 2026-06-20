@@ -411,28 +411,25 @@ describe('deriveRooms', () => {
     expect(deriveRooms(reg, states).map((r) => r.name)).toEqual(['Lounge', 'Study', 'Bedroom']);
   });
 
-  it('names entities: registry name > friendly_name > original_name > id', () => {
+  it('names entities by precedence: registry name > friendly_name > original_name > id', () => {
     const reg: Registries = {
       ...empty,
       areas: [{ area_id: 'a', name: 'A', icon: null, floor_id: null }],
       entities: [
-        ent('light.one', { area_id: 'a', name: 'Override' }),
-        ent('light.two', { area_id: 'a', original_name: 'Original' }),
-        ent('light.three', { area_id: 'a' })
+        ent('light.one', { area_id: 'a', name: 'Override', original_name: 'Ignored' }),
+        ent('light.two', { area_id: 'a', original_name: 'Ignored' }),
+        ent('light.three', { area_id: 'a', original_name: 'FromOriginal' }),
+        ent('light.four', { area_id: 'a' })
       ]
     };
     const st: EntityMap = {
-      'light.two': { entity_id: 'light.two', state: 'on', attributes: { friendly_name: 'Friendly' } }
+      'light.two': { entity_id: 'light.two', state: 'on', attributes: { friendly_name: 'FromFriendly' } }
     };
-    const names = deriveRooms(reg, st)[0].lights!.map((l) => l.name);
-    // sorted alphabetically by display name: Friendly is overridden by friendly_name only if no registry name
-    expect(names).toContain('Override');
-    expect(names).toContain('Original'); // light.two has no friendly_name in this map? it does -> Friendly
+    const names = deriveRooms(reg, st)[0].lights!.map((l) => l.name).sort();
+    expect(names).toEqual(['FromFriendly', 'FromOriginal', 'Override', 'light.four'].sort());
   });
 });
 ```
-
-> Note: the last assertion is intentionally loose; the precedence is fully checked by `Override`/`light.three` → `light.three` and the friendly-name path. Keep the test as written; it passes with the implementation below.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
