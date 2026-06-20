@@ -12,13 +12,16 @@
   let hasCreds = $state(existing !== null);
 
   async function connect() {
-    if (!credentialsValid(url, token)) {
+    // Keep the saved token if the field is left blank (we never pre-fill it on screen).
+    const stored = loadCredentials();
+    const useToken = token.trim() ? token : stored?.token ?? '';
+    if (!credentialsValid(url, useToken)) {
       errorMsg = 'Enter both the URL and the token.';
       return;
     }
     errorMsg = '';
     connecting = true;
-    saveCredentials(url, token);
+    saveCredentials(url, useToken);
     try {
       await connectLive();
       showSettings.set(false);
@@ -66,9 +69,9 @@
     <label for="ha-token">Long-lived access token</label>
     <div class="token-row">
       {#if showToken}
-        <input id="ha-token" type="text" autocomplete="off" bind:value={token} disabled={connecting} />
+        <input id="ha-token" type="text" autocomplete="off" placeholder={hasCreds ? 'Saved — leave blank to keep' : ''} bind:value={token} disabled={connecting} />
       {:else}
-        <input id="ha-token" type="password" autocomplete="off" bind:value={token} disabled={connecting} />
+        <input id="ha-token" type="password" autocomplete="off" placeholder={hasCreds ? 'Saved — leave blank to keep' : ''} bind:value={token} disabled={connecting} />
       {/if}
       <button type="button" class="ghost" onclick={() => (showToken = !showToken)} disabled={connecting}>
         {showToken ? 'Hide' : 'Show'}
