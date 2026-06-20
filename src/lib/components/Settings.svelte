@@ -9,7 +9,7 @@
   let showToken = $state(false);
   let connecting = $state(false);
   let errorMsg = $state('');
-  const hasCreds = existing !== null;
+  let hasCreds = $state(existing !== null);
 
   async function connect() {
     if (!credentialsValid(url, token)) {
@@ -40,6 +40,7 @@
     url = '';
     token = '';
     errorMsg = '';
+    hasCreds = false;
   }
 </script>
 
