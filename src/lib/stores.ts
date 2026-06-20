@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import type { EntityMap, Room } from './types';
 
 // Single source of UI truth at runtime. Phase 1: filled from mockStates.
@@ -29,3 +29,32 @@ export const status = writable<'connecting' | 'connected' | 'disconnected' | 'of
 
 // Drives the first-run / reconfigure settings overlay.
 export const showSettings = writable<boolean>(false);
+
+// Per-device room visibility (opt-out): only explicitly-hidden area IDs are filtered,
+// so new HA areas appear automatically. Stored locally, never in the repo.
+const HIDDEN_KEY = 'room-remote:hiddenRooms';
+
+function loadHidden(): string[] {
+  if (!browser) return [];
+  try {
+    const v = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+export const hiddenRooms = writable<string[]>(loadHidden());
+if (browser) {
+  hiddenRooms.subscribe((v) => localStorage.setItem(HIDDEN_KEY, JSON.stringify(v)));
+}
+
+// Never return an empty list: if every room is hidden, show them all.
+export function computeVisibleRooms(rooms: Room[], hidden: string[]): Room[] {
+  const visible = rooms.filter((r) => !hidden.includes(r.id));
+  return visible.length > 0 ? visible : rooms;
+}
+
+export const visibleRooms = derived([rooms, hiddenRooms], ([$rooms, $hidden]) =>
+  computeVisibleRooms($rooms, $hidden)
+);
