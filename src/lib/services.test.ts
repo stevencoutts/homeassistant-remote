@@ -11,9 +11,11 @@ import {
   setLightBrightness,
   setVolume,
   setCoverPosition,
+  setLights,
   lightsCall,
   anyLightOn
 } from './services';
+import { callService } from 'home-assistant-js-websocket';
 import { entities } from './stores';
 
 // --- Pure builder tests ---
@@ -133,5 +135,41 @@ describe('slider optimistic store updates', () => {
     const e = get(entities)['cover.x'];
     expect(e.attributes.current_position).toBe(0);
     expect(e.state).toBe('closed');
+  });
+});
+
+describe('setLights (master toggle)', () => {
+  let mockGetConnection: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    const connModule = await import('./ha/connection');
+    mockGetConnection = connModule.getConnection as ReturnType<typeof vi.fn>;
+    vi.mocked(callService).mockClear();
+    entities.set({
+      'light.a': { entity_id: 'light.a', state: 'off', attributes: {} },
+      'light.b': { entity_id: 'light.b', state: 'on', attributes: {} }
+    });
+  });
+
+  it('sets every entity state in the store when offline', () => {
+    mockGetConnection.mockReturnValue(null);
+    setLights(['light.a', 'light.b'], true);
+    const m = get(entities);
+    expect(m['light.a'].state).toBe('on');
+    expect(m['light.b'].state).toBe('on');
+  });
+
+  it('skips missing entities without throwing', () => {
+    mockGetConnection.mockReturnValue(null);
+    expect(() => setLights(['light.x'], true)).not.toThrow();
+  });
+
+  it('calls callService once with an array target when connected', () => {
+    mockGetConnection.mockReturnValue({} as object);
+    setLights(['light.a', 'light.b'], false);
+    expect(callService).toHaveBeenCalledOnce();
+    expect(callService).toHaveBeenCalledWith({}, 'light', 'turn_off', {}, {
+      entity_id: ['light.a', 'light.b']
+    });
   });
 });
