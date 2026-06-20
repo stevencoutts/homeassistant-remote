@@ -1,68 +1,108 @@
+import { callService } from 'home-assistant-js-websocket';
+import { getConnection } from './ha/connection';
 import { activeScene, entities } from './stores';
+import { debounce } from './util/debounce';
 import type { EntityState } from './types';
 
-// Phase 1: these mutate the local entities store optimistically so the UI is interactive.
-// Phase 2: each becomes a call_service over the HA WebSocket; the UI then follows the
-// state HA pushes back, and continuous writes (brightness, volume, cover position) get
-// debounced ~200ms here so dragging doesn't flood HA. No debounce in phase 1 — there is
-// nothing to flood, and the on-screen percentage must track the slider live.
-
-function patch(id: string, change: (e: EntityState) => EntityState) {
-  entities.update((m) => {
-    const e = m[id];
-    if (!e) return m;
-    return { ...m, [id]: change(e) };
-  });
+export interface ServiceCall {
+  domain: string;
+  service: string;
+  data: Record<string, unknown>;
+  target: { entity_id: string };
 }
 
+// --- Pure builders (unit-tested) ---
+const call = (domain: string, service: string, entity_id: string, data: Record<string, unknown> = {}): ServiceCall => ({
+  domain, service, data, target: { entity_id }
+});
+
+export const lightToggleCall = (id: string) => call('light', 'toggle', id);
+export const brightnessCall = (id: string, pct: number) => call('light', 'turn_on', id, { brightness_pct: pct });
+export const temperatureCall = (id: string, temperature: number) => call('climate', 'set_temperature', id, { temperature });
+export const hvacModeCall = (id: string, hvac_mode: string) => call('climate', 'set_hvac_mode', id, { hvac_mode });
+export const playPauseCall = (id: string) => call('media_player', 'media_play_pause', id);
+export const prevCall = (id: string) => call('media_player', 'media_previous_track', id);
+export const nextCall = (id: string) => call('media_player', 'media_next_track', id);
+export const volumeCall = (id: string, pct: number) => call('media_player', 'volume_set', id, { volume_level: pct / 100 });
+export const coverPositionCall = (id: string, position: number) => call('cover', 'set_cover_position', id, { position });
+export const openCoverCall = (id: string) => call('cover', 'open_cover', id);
+export const closeCoverCall = (id: string) => call('cover', 'close_cover', id);
+export const stopCoverCall = (id: string) => call('cover', 'stop_cover', id);
+export const sceneCall = (id: string) => call('scene', 'turn_on', id);
+
+// --- Dispatcher: live HA when connected, optimistic local mutation when offline-mock ---
+function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) {
+  const conn = getConnection();
+  if (conn) {
+    callService(conn, c.domain, c.service, c.data, c.target);
+    return; // UI follows HA-pushed state
+  }
+  if (optimistic) {
+    entities.update((m) => {
+      const e = m[c.target.entity_id];
+      return e ? { ...m, [c.target.entity_id]: optimistic(e) } : m;
+    });
+  }
+}
+
+// --- Actions consumed by components (same names/signatures as before) ---
 export function toggleLight(id: string) {
-  patch(id, (e) => ({ ...e, state: e.state === 'on' ? 'off' : 'on' }));
+  dispatch(lightToggleCall(id), (e) => ({ ...e, state: e.state === 'on' ? 'off' : 'on' }));
 }
 
+const writeBrightness = debounce((id: string, pct: number) => dispatch(brightnessCall(id, pct)), 200);
 export function setLightBrightness(id: string, pct: number) {
-  patch(id, (e) => ({
-    ...e,
-    state: 'on',
-    attributes: { ...e.attributes, brightness: Math.round((pct / 100) * 255) }
-  }));
+  // Keep the on-screen % live offline; debounce the HA write so dragging doesn't flood it.
+  if (!getConnection()) {
+    entities.update((m) => {
+      const e = m[id];
+      return e ? { ...m, [id]: { ...e, state: 'on', attributes: { ...e.attributes, brightness: Math.round((pct / 100) * 255) } } } : m;
+    });
+    return;
+  }
+  writeBrightness(id, pct);
 }
 
 export function setTemperature(id: string, temp: number) {
-  patch(id, (e) => ({ ...e, attributes: { ...e.attributes, temperature: temp } }));
+  dispatch(temperatureCall(id, temp), (e) => ({ ...e, attributes: { ...e.attributes, temperature: temp } }));
 }
-
 export function setHvacMode(id: string, mode: string) {
-  patch(id, (e) => ({ ...e, state: mode }));
+  dispatch(hvacModeCall(id, mode), (e) => ({ ...e, state: mode }));
 }
-
 export function mediaPlayPause(id: string) {
-  patch(id, (e) => ({ ...e, state: e.state === 'playing' ? 'paused' : 'playing' }));
+  dispatch(playPauseCall(id), (e) => ({ ...e, state: e.state === 'playing' ? 'paused' : 'playing' }));
 }
+export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
+export function mediaNext(id: string) { dispatch(nextCall(id)); }
 
-// Previous/next have no observable effect on mock data; real service calls land in phase 2.
-export function mediaPrevious(_id: string) {}
-export function mediaNext(_id: string) {}
-
+const writeVolume = debounce((id: string, pct: number) => dispatch(volumeCall(id, pct)), 200);
 export function setVolume(id: string, pct: number) {
-  patch(id, (e) => ({ ...e, attributes: { ...e.attributes, volume_level: pct / 100 } }));
+  if (!getConnection()) {
+    entities.update((m) => {
+      const e = m[id];
+      return e ? { ...m, [id]: { ...e, attributes: { ...e.attributes, volume_level: pct / 100 } } } : m;
+    });
+    return;
+  }
+  writeVolume(id, pct);
 }
 
+const writeCover = debounce((id: string, pos: number) => dispatch(coverPositionCall(id, pos)), 200);
 export function setCoverPosition(id: string, pos: number) {
-  patch(id, (e) => ({
-    ...e,
-    state: pos > 0 ? 'open' : 'closed',
-    attributes: { ...e.attributes, current_position: pos }
-  }));
+  if (!getConnection()) {
+    entities.update((m) => {
+      const e = m[id];
+      return e ? { ...m, [id]: { ...e, state: pos > 0 ? 'open' : 'closed', attributes: { ...e.attributes, current_position: pos } } } : m;
+    });
+    return;
+  }
+  writeCover(id, pos);
 }
-
-export function openCover(id: string) {
-  setCoverPosition(id, 100);
-}
-export function closeCover(id: string) {
-  setCoverPosition(id, 0);
-}
-export function stopCover(_id: string) {} // no-op against mock data
+export function openCover(id: string) { dispatch(openCoverCall(id), (e) => ({ ...e, state: 'open', attributes: { ...e.attributes, current_position: 100 } })); }
+export function closeCover(id: string) { dispatch(closeCoverCall(id), (e) => ({ ...e, state: 'closed', attributes: { ...e.attributes, current_position: 0 } })); }
+export function stopCover(id: string) { dispatch(stopCoverCall(id)); }
 
 export function activateScene(roomId: string, sceneEntity: string) {
-  activeScene.update((m) => ({ ...m, [roomId]: sceneEntity }));
+  dispatch(sceneCall(sceneEntity));
+  activeScene.update((m) => ({ ...m, [roomId]: sceneEntity })); // best-effort highlight
 }
