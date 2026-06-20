@@ -539,3 +539,43 @@ input[type="range"].blue::-moz-range-thumb {
   color: var(--text);
   border-color: var(--line);
 }
+
+/* Wide cards span both columns in the 2-col grid (no-op in 1-col). */
+.card.wide {
+  grid-column: 1 / -1;
+}
+
+/* Collapsible card header */
+.head-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 44px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.head-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.chev {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+  flex: none;
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s;
+}
+.chev.open {
+  transform: rotate(180deg);
+}

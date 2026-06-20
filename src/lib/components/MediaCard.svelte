@@ -13,7 +13,7 @@
   $: vol = Math.round((attrs.volume_level ?? 0) * 100);
 </script>
 
-<div class="card">
+<div class="card wide">
   <div class="card-head">
     <div class="label"><span class="icon">{@html icons.media}</span>Media</div>
     <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
