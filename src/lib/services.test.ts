@@ -10,7 +10,9 @@ import {
   sceneCall,
   setLightBrightness,
   setVolume,
-  setCoverPosition
+  setCoverPosition,
+  lightsCall,
+  anyLightOn
 } from './services';
 import { entities } from './stores';
 
@@ -39,6 +41,30 @@ describe('service-call builders', () => {
     expect(sceneCall('scene.x')).toEqual({
       domain: 'scene', service: 'turn_on', data: {}, target: { entity_id: 'scene.x' }
     });
+  });
+
+  it('builds a multi-entity light call', () => {
+    expect(lightsCall(['light.a', 'light.b'], true)).toEqual({
+      domain: 'light', service: 'turn_on', data: {}, target: { entity_id: ['light.a', 'light.b'] }
+    });
+    expect(lightsCall(['light.a'], false)).toEqual({
+      domain: 'light', service: 'turn_off', data: {}, target: { entity_id: ['light.a'] }
+    });
+  });
+});
+
+describe('anyLightOn', () => {
+  const states = {
+    'light.a': { entity_id: 'light.a', state: 'on', attributes: {} },
+    'light.b': { entity_id: 'light.b', state: 'off', attributes: {} }
+  };
+  it('is true when at least one is on', () => {
+    expect(anyLightOn(states, ['light.a', 'light.b'])).toBe(true);
+  });
+  it('is false when all off or missing', () => {
+    expect(anyLightOn(states, ['light.b'])).toBe(false);
+    expect(anyLightOn(states, ['light.x'])).toBe(false);
+    expect(anyLightOn(states, [])).toBe(false);
   });
 });
 

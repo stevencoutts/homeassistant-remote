@@ -2,13 +2,13 @@ import { callService } from 'home-assistant-js-websocket';
 import { getConnection } from './ha/connection';
 import { activeScene, entities } from './stores';
 import { debounce } from './util/debounce';
-import type { EntityState } from './types';
+import type { EntityState, EntityMap } from './types';
 
 export interface ServiceCall {
   domain: string;
   service: string;
   data: Record<string, unknown>;
-  target: { entity_id: string };
+  target: { entity_id: string | string[] };
 }
 
 // --- Pure builders (unit-tested) ---
@@ -39,10 +39,13 @@ function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) 
     return; // UI follows HA-pushed state
   }
   if (optimistic) {
-    entities.update((m) => {
-      const e = m[c.target.entity_id];
-      return e ? { ...m, [c.target.entity_id]: optimistic(e) } : m;
-    });
+    const entityId = c.target.entity_id;
+    if (typeof entityId === 'string') {
+      entities.update((m) => {
+        const e = m[entityId];
+        return e ? { ...m, [entityId]: optimistic(e) } : m;
+      });
+    }
   }
 }
 
@@ -100,4 +103,29 @@ export function stopCover(id: string) { dispatch(stopCoverCall(id)); }
 export function activateScene(roomId: string, sceneEntity: string) {
   dispatch(sceneCall(sceneEntity));
   activeScene.update((m) => ({ ...m, [roomId]: sceneEntity })); // best-effort highlight
+}
+
+export function anyLightOn(states: EntityMap, ids: string[]): boolean {
+  return ids.some((id) => states[id]?.state === 'on');
+}
+
+export function lightsCall(entityIds: string[], on: boolean): ServiceCall {
+  return { domain: 'light', service: on ? 'turn_on' : 'turn_off', data: {}, target: { entity_id: entityIds } };
+}
+
+export function setLights(entityIds: string[], on: boolean) {
+  const conn = getConnection();
+  if (conn) {
+    callService(conn, 'light', on ? 'turn_on' : 'turn_off', {}, { entity_id: entityIds })
+      .catch((err) => console.error('HA service call failed', err));
+    return;
+  }
+  entities.update((m) => {
+    const next = { ...m };
+    for (const id of entityIds) {
+      const e = next[id];
+      if (e) next[id] = { ...e, state: on ? 'on' : 'off' };
+    }
+    return next;
+  });
 }
