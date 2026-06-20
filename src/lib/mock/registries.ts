@@ -137,10 +137,11 @@ export function mockStates(reg: Registries): EntityMap {
         media_title: 'Wandering Star',
         media_artist: 'Portishead',
         source: 'Sonos',
-        volume_level: 0.35
+        volume_level: 0.35,
+        supported_features: 0xffff
       });
     } else if (domain === 'cover') {
-      put(e.entity_id, 'open', { friendly_name: fn, current_position: 60 });
+      put(e.entity_id, 'open', { friendly_name: fn, current_position: 60, supported_features: 0xff });
     }
   }
   return m;
