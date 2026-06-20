@@ -491,6 +491,30 @@ input[type="range"].blue::-moz-range-thumb {
   line-height: 1.5;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gear {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.gear:active {
+  background: var(--panel-2);
+}
+.gear svg {
+  width: 22px;
+  height: 22px;
+}
+
 /* Bottom room nav */
 .roomnav {
   display: flex;

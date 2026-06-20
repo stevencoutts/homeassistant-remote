@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { startHa } from '$lib/ha/connection';
+  import { connectLive, disconnect } from '$lib/ha/connection';
+  import { loadCredentials } from '$lib/ha/auth';
+  import { showSettings } from '$lib/stores';
+  import Settings from '$lib/components/Settings.svelte';
+  import { icons } from '$lib/icons';
   import { entities, currentRoomId, rooms, status } from '$lib/stores';
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
@@ -10,18 +14,21 @@
   import CoverCard from '$lib/components/CoverCard.svelte';
 
   let clock = '';
-  let error = '';
 
   // Per-device room-lock: ?lock=<area_id> pins this device to one room and hides the nav.
   const lock =
     typeof location !== 'undefined' ? new URLSearchParams(location.search).get('lock') : null;
 
   onMount(async () => {
-    try {
-      await startHa();
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-      status.set('disconnected');
+    if (loadCredentials()) {
+      try {
+        await connectLive();
+      } catch {
+        disconnect();
+        showSettings.set(true);
+      }
+    } else {
+      showSettings.set(true);
     }
   });
 
@@ -68,10 +75,15 @@
       <div class="name">{room?.name ?? 'Room Remote'}</div>
       <div class="sub">{sub}</div>
     </div>
-    <div class="clock">
-      <div class="time">{clock || '--:--'}</div>
-      {#if $status === 'disconnected'}<div class="meta" style="color:var(--red)">Disconnected</div>
-      {:else if $status === 'connecting'}<div class="meta">Connecting…</div>{/if}
+    <div class="header-right">
+      <div class="clock">
+        <div class="time">{clock || '--:--'}</div>
+        {#if $status === 'disconnected'}<div class="meta" style="color:var(--red)">Disconnected</div>
+        {:else if $status === 'connecting'}<div class="meta">Connecting…</div>{/if}
+      </div>
+      <button class="gear" aria-label="Settings" onclick={() => showSettings.set(true)}>
+        {@html icons.cog}
+      </button>
     </div>
   </header>
 
@@ -90,6 +102,6 @@
   {/if}
 </div>
 
-{#if error}
-  <div class="overlay">Connection error: {error}<br />Check the HA URL and token.</div>
+{#if $showSettings}
+  <Settings />
 {/if}
