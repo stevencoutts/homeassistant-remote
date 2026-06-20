@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
-import type { EntityMap } from './types';
+import type { EntityMap, Room } from './types';
 
 // Single source of UI truth at runtime. Phase 1: filled from mockStates.
 // Phase 2: filled and kept in sync by the HA WebSocket subscription.
@@ -18,3 +18,11 @@ if (browser) {
     if (id) localStorage.setItem(ROOM_KEY, id);
   });
 }
+
+// Derived room list: populated by startHa() from registries + entity states.
+export const rooms = writable<Room[]>([]);
+
+// Connection status indicator.
+export const status = writable<'connecting' | 'connected' | 'disconnected' | 'offline-mock'>(
+  'connecting'
+);

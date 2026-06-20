@@ -11,14 +11,14 @@ describe('normaliseHassUrl', () => {
 
 describe('credential storage', () => {
   beforeEach(() => {
+    const store: Record<string, string> = {};
     globalThis.localStorage = {
-      _s: {} as Record<string, string>,
-      getItem(k: string) { return this._s[k] ?? null; },
-      setItem(k: string, v: string) { this._s[k] = v; },
-      removeItem(k: string) { delete this._s[k]; },
-      clear() { this._s = {}; },
-      get length() { return Object.keys(this._s).length; },
-      key(i: number) { return Object.keys(this._s)[i] ?? null; }
+      getItem(k: string) { return store[k] ?? null; },
+      setItem(k: string, v: string) { store[k] = v; },
+      removeItem(k: string) { delete store[k]; },
+      clear() { Object.keys(store).forEach((k) => delete store[k]); },
+      get length() { return Object.keys(store).length; },
+      key(i: number) { return Object.keys(store)[i] ?? null; }
     } as unknown as Storage;
   });
 

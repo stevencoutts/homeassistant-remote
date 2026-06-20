@@ -1,32 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { loadConfig } from '$lib/config';
-  import { mockStates } from '$lib/mockStates';
-  import { entities, currentRoomId } from '$lib/stores';
+  import { startHa } from '$lib/ha/connection';
+  import { entities, currentRoomId, rooms, status } from '$lib/stores';
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
   import ScenesCard from '$lib/components/ScenesCard.svelte';
   import ClimateCard from '$lib/components/ClimateCard.svelte';
   import MediaCard from '$lib/components/MediaCard.svelte';
   import CoverCard from '$lib/components/CoverCard.svelte';
-  import type { RoomsConfig } from '$lib/types';
 
-  let config: RoomsConfig | null = null;
-  let error = '';
   let clock = '';
+  let error = '';
+
+  // Per-device room-lock: ?lock=<area_id> pins this device to one room and hides the nav.
+  const lock =
+    typeof location !== 'undefined' ? new URLSearchParams(location.search).get('lock') : null;
 
   onMount(async () => {
     try {
-      config = await loadConfig();
-      entities.set(mockStates(config)); // phase 2: live HA subscription replaces this
-      const lock = config.deviceRoomLock;
-      if (lock) {
-        currentRoomId.set(lock);
-      } else if (!config.rooms.some((r) => r.id === $currentRoomId)) {
-        currentRoomId.set(config.rooms[0].id);
-      }
+      await startHa();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+      status.set('disconnected');
     }
   });
 
@@ -38,12 +33,15 @@
     return () => clearInterval(t);
   });
 
-  $: room = config?.rooms.find((r) => r.id === $currentRoomId) ?? null;
-  $: locked = !!config?.deviceRoomLock;
-  $: outdoorId = config?.ha.outdoorTempEntity;
-  $: outdoor = outdoorId && $entities[outdoorId] ? `Outside ${$entities[outdoorId].state}°C` : '';
+  // Keep selection valid as rooms arrive; honour the lock.
+  $: if (lock) {
+    currentRoomId.set(lock);
+  } else if ($rooms.length && !$rooms.some((r) => r.id === $currentRoomId)) {
+    currentRoomId.set($rooms[0].id);
+  }
 
-  // Header subtitle: lights on / current temp / media state, mirroring the mockup.
+  $: room = $rooms.find((r) => r.id === $currentRoomId) ?? null;
+
   $: sub = room ? subtitle() : '';
   function subtitle(): string {
     if (!room) return '';
@@ -72,7 +70,8 @@
     </div>
     <div class="clock">
       <div class="time">{clock || '--:--'}</div>
-      {#if outdoor}<div class="meta">{outdoor}</div>{/if}
+      {#if $status === 'disconnected'}<div class="meta" style="color:var(--red)">Disconnected</div>
+      {:else if $status === 'connecting'}<div class="meta">Connecting…</div>{/if}
     </div>
   </header>
 
@@ -86,11 +85,11 @@
     {/if}
   </main>
 
-  {#if config && !locked}
-    <RoomNav rooms={config.rooms} />
+  {#if $rooms.length && !lock}
+    <RoomNav rooms={$rooms} />
   {/if}
 </div>
 
 {#if error}
-  <div class="overlay">Config error: {error}<br />Check static/rooms.json.</div>
+  <div class="overlay">Connection error: {error}<br />Check the HA URL and token.</div>
 {/if}
