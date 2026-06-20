@@ -19,3 +19,12 @@ export function saveCredentials(url: string, token: string): void {
   localStorage.setItem(URL_KEY, normaliseHassUrl(url));
   localStorage.setItem(TOKEN_KEY, token);
 }
+
+export function credentialsValid(url: string, token: string): boolean {
+  return url.trim().length > 0 && token.trim().length > 0;
+}
+
+export function clearCredentials(): void {
+  localStorage.removeItem(URL_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+}

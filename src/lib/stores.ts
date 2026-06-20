@@ -26,3 +26,6 @@ export const rooms = writable<Room[]>([]);
 export const status = writable<'connecting' | 'connected' | 'disconnected' | 'offline-mock'>(
   'connecting'
 );
+
+// Drives the first-run / reconfigure settings overlay.
+export const showSettings = writable<boolean>(false);

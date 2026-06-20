@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { normaliseHassUrl, loadCredentials, saveCredentials } from './auth';
+import { normaliseHassUrl, loadCredentials, saveCredentials, credentialsValid, clearCredentials } from './auth';
 
 describe('normaliseHassUrl', () => {
   it('strips the websocket path and trailing slash', () => {
@@ -29,5 +29,18 @@ describe('credential storage', () => {
   it('round-trips and normalises the url', () => {
     saveCredentials('http://ha.local:8123/api/websocket', 'tok123');
     expect(loadCredentials()).toEqual({ url: 'http://ha.local:8123', token: 'tok123' });
+  });
+
+  it('credentialsValid requires both fields non-empty', () => {
+    expect(credentialsValid('http://ha.local:8123', 'tok')).toBe(true);
+    expect(credentialsValid('  ', 'tok')).toBe(false);
+    expect(credentialsValid('http://ha.local:8123', '   ')).toBe(false);
+    expect(credentialsValid('', '')).toBe(false);
+  });
+
+  it('clearCredentials removes both stored keys', () => {
+    saveCredentials('http://ha.local:8123', 'tok');
+    clearCredentials();
+    expect(loadCredentials()).toBeNull();
   });
 });

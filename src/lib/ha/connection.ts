@@ -12,9 +12,13 @@ import { mockRegistries, mockStates } from '$lib/mock/registries';
 import { entities, rooms, status } from '$lib/stores';
 import type { EntityMap } from '$lib/types';
 
+const CONNECT_TIMEOUT_MS = 10000;
+
 let conn: Connection | null = null;
 let latestStates: EntityMap = {};
 let latestRegistries: Registries | null = null;
+let unsubEntities: (() => void) | null = null;
+let unsubRegistry: (() => void) | null = null;
 
 export function getConnection(): Connection | null {
   return conn;
@@ -29,28 +33,28 @@ function toEntityMap(hass: HassEntities): EntityMap {
   return hass as unknown as EntityMap;
 }
 
-export async function startHa(): Promise<void> {
+// Live HA connection. Requires stored credentials; rejects on failure so the
+// settings form can show the error. No offline fallback here.
+export async function connectLive(): Promise<void> {
   const creds = loadCredentials();
-
-  if (!creds) {
-    // Offline/dev: run the same deriveRooms against the fixture.
-    latestRegistries = mockRegistries();
-    latestStates = mockStates(latestRegistries);
-    entities.set(latestStates);
-    recompute();
-    status.set('offline-mock');
-    return;
-  }
+  if (!creds) throw new Error('No credentials stored');
 
   status.set('connecting');
   const auth = createLongLivedTokenAuth(creds.url, creds.token);
-  conn = await createConnection({ auth }); // auto-reconnects with backoff
+
+  // ponytail: a timed-out createConnection may keep retrying in the background
+  // until the next reload; acceptable for a wrong-URL setup mistake.
+  conn = await Promise.race([
+    createConnection({ auth }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Connection timed out')), CONNECT_TIMEOUT_MS)
+    )
+  ]);
 
   conn.addEventListener('ready', () => status.set('connected'));
   conn.addEventListener('disconnected', () => status.set('disconnected'));
-  // Status stays 'connecting' until rooms are ready; set 'connected' after first recompute below.
 
-  subscribeEntities(conn, (hass) => {
+  unsubEntities = subscribeEntities(conn, (hass) => {
     latestStates = toEntityMap(hass);
     entities.set(latestStates);
     recompute();
@@ -60,10 +64,34 @@ export async function startHa(): Promise<void> {
   recompute();
   status.set('connected');
 
-  await subscribeRegistryEvents(conn, async () => {
+  unsubRegistry = await subscribeRegistryEvents(conn, async () => {
     if (conn) {
       latestRegistries = await fetchRegistries(conn);
       recompute();
     }
   });
+}
+
+// Offline demo: run the same deriveRooms against the mock fixture.
+export function startMock(): void {
+  latestRegistries = mockRegistries();
+  latestStates = mockStates(latestRegistries);
+  entities.set(latestStates);
+  recompute();
+  status.set('offline-mock');
+}
+
+// Tear down the live connection and reset to a pre-connection state.
+export function disconnect(): void {
+  unsubEntities?.();
+  unsubRegistry?.();
+  unsubEntities = null;
+  unsubRegistry = null;
+  conn?.close();
+  conn = null;
+  latestStates = {};
+  latestRegistries = null;
+  entities.set({});
+  rooms.set([]);
+  status.set('connecting');
 }
