@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { showSettings } from '$lib/stores';
+  import { showSettings, rooms, hiddenRooms, visibleRooms } from '$lib/stores';
   import { loadCredentials, saveCredentials, credentialsValid, clearCredentials } from '$lib/ha/auth';
   import { connectLive, startMock, disconnect } from '$lib/ha/connection';
 
@@ -42,6 +42,10 @@
     errorMsg = '';
     hasCreds = false;
   }
+
+  function toggleRoom(id: string, show: boolean) {
+    hiddenRooms.update((h) => (show ? h.filter((x) => x !== id) : h.includes(id) ? h : [...h, id]));
+  }
 </script>
 
 <div class="settings-overlay">
@@ -80,6 +84,24 @@
 
     {#if hasCreds}
       <button class="danger" onclick={clear} disabled={connecting}>Disconnect &amp; clear</button>
+    {/if}
+
+    {#if $rooms.length}
+      <div class="rooms-section">
+        <h2>Rooms on this device</h2>
+        {#each $rooms as r (r.id)}
+          {@const visible = !$hiddenRooms.includes(r.id)}
+          <label class="room-row">
+            <input
+              type="checkbox"
+              checked={visible}
+              disabled={visible && $visibleRooms.length <= 1}
+              onchange={(e) => toggleRoom(r.id, e.currentTarget.checked)}
+            />
+            <span>{r.name}</span>
+          </label>
+        {/each}
+      </div>
     {/if}
   </div>
 </div>
@@ -171,6 +193,33 @@
     color: var(--red);
     font-size: 0.85rem;
     margin: 2px 0 0;
+  }
+  .rooms-section {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .rooms-section h2 {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 6px 0 2px;
+  }
+  .room-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    font-size: 0.95rem;
+  }
+  .room-row input {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    accent-color: var(--blue);
   }
   @media (prefers-reduced-motion: reduce) {
     * {

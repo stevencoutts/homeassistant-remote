@@ -5,7 +5,7 @@
   import { showSettings } from '$lib/stores';
   import Settings from '$lib/components/Settings.svelte';
   import { icons } from '$lib/icons';
-  import { entities, currentRoomId, rooms, status } from '$lib/stores';
+  import { entities, currentRoomId, rooms, visibleRooms, status } from '$lib/stores';
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
   import ScenesCard from '$lib/components/ScenesCard.svelte';
@@ -43,8 +43,8 @@
   // Keep selection valid as rooms arrive; honour the lock.
   $: if (lock) {
     currentRoomId.set(lock);
-  } else if ($rooms.length && !$rooms.some((r) => r.id === $currentRoomId)) {
-    currentRoomId.set($rooms[0].id);
+  } else if ($visibleRooms.length && !$visibleRooms.some((r) => r.id === $currentRoomId)) {
+    currentRoomId.set($visibleRooms[0].id);
   }
 
   $: room = $rooms.find((r) => r.id === $currentRoomId) ?? null;
@@ -97,8 +97,8 @@
     {/if}
   </main>
 
-  {#if $rooms.length && !lock}
-    <RoomNav rooms={$rooms} />
+  {#if $visibleRooms.length && !lock}
+    <RoomNav rooms={$visibleRooms} />
   {/if}
 </div>
 
