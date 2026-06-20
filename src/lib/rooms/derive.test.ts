@@ -1,0 +1,123 @@
+import { describe, it, expect } from 'vitest';
+import { deriveRooms, mapAreaIcon } from './derive';
+import type { Registries } from '$lib/ha/registries';
+import type { EntityMap } from '$lib/types';
+
+const empty: Registries = { areas: [], floors: [], devices: [], entities: [] };
+const states: EntityMap = {};
+
+function ent(entity_id: string, over: Partial<Registries['entities'][number]> = {}) {
+  return {
+    entity_id,
+    area_id: null,
+    device_id: null,
+    name: null,
+    original_name: null,
+    hidden_by: null,
+    disabled_by: null,
+    entity_category: null,
+    ...over
+  };
+}
+
+describe('mapAreaIcon', () => {
+  it('maps known mdi names and falls back', () => {
+    expect(mapAreaIcon('mdi:bed')).toBe('bed');
+    expect(mapAreaIcon('mdi:unknown-thing')).toBe('sofa');
+    expect(mapAreaIcon(null)).toBe('sofa');
+  });
+});
+
+describe('deriveRooms', () => {
+  it('makes a room from an area that has a control entity, grouped by domain', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'living', name: 'Living Room', icon: 'mdi:sofa', floor_id: null }],
+      entities: [
+        ent('light.living_ceiling', { area_id: 'living', original_name: 'Ceiling' }),
+        ent('climate.living', { area_id: 'living' }),
+        ent('scene.movie', { area_id: 'living', original_name: 'Movie' })
+      ]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.id).toBe('living');
+    expect(room.name).toBe('Living Room');
+    expect(room.icon).toBe('sofa');
+    expect(room.lights).toEqual([{ name: 'Ceiling', entity: 'light.living_ceiling' }]);
+    expect(room.climate).toEqual({ entity: 'climate.living' });
+    expect(room.scenes).toEqual([{ name: 'Movie', entity: 'scene.movie' }]);
+    expect(room.media).toBeUndefined();
+    expect(room.covers).toBeUndefined();
+  });
+
+  it('inherits the area from the device when the entity has none', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'kitchen', name: 'Kitchen', icon: null, floor_id: null }],
+      devices: [{ id: 'dev1', area_id: 'kitchen' }],
+      entities: [ent('light.k', { device_id: 'dev1' })]
+    };
+    expect(deriveRooms(reg, states)[0].id).toBe('kitchen');
+  });
+
+  it('drops hidden, disabled, config and diagnostic entities', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'a', name: 'A', icon: null, floor_id: null }],
+      entities: [
+        ent('light.hidden', { area_id: 'a', hidden_by: 'user' }),
+        ent('light.disabled', { area_id: 'a', disabled_by: 'user' }),
+        ent('sensor.diag', { area_id: 'a', entity_category: 'diagnostic' })
+      ]
+    };
+    expect(deriveRooms(reg, states)).toEqual([]); // no visible control entity -> no room
+  });
+
+  it('skips areas with no control-domain entity (scenes alone do not count)', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'a', name: 'A', icon: null, floor_id: null }],
+      entities: [ent('scene.only', { area_id: 'a' })]
+    };
+    expect(deriveRooms(reg, states)).toEqual([]);
+  });
+
+  it('orders rooms by floor level then name', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [
+        { area_id: 'up', name: 'Bedroom', icon: null, floor_id: 'first' },
+        { area_id: 'down_b', name: 'Study', icon: null, floor_id: 'ground' },
+        { area_id: 'down_a', name: 'Lounge', icon: null, floor_id: 'ground' }
+      ],
+      floors: [
+        { floor_id: 'ground', name: 'Ground', level: 0 },
+        { floor_id: 'first', name: 'First', level: 1 }
+      ],
+      entities: [
+        ent('light.1', { area_id: 'up' }),
+        ent('light.2', { area_id: 'down_b' }),
+        ent('light.3', { area_id: 'down_a' })
+      ]
+    };
+    expect(deriveRooms(reg, states).map((r) => r.name)).toEqual(['Lounge', 'Study', 'Bedroom']);
+  });
+
+  it('names entities by precedence: registry name > friendly_name > original_name > id', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'a', name: 'A', icon: null, floor_id: null }],
+      entities: [
+        ent('light.one', { area_id: 'a', name: 'Override', original_name: 'Ignored' }),
+        ent('light.two', { area_id: 'a', original_name: 'Ignored' }),
+        ent('light.three', { area_id: 'a', original_name: 'FromOriginal' }),
+        ent('light.four', { area_id: 'a' })
+      ]
+    };
+    const st: EntityMap = {
+      'light.two': { entity_id: 'light.two', state: 'on', attributes: { friendly_name: 'FromFriendly' } }
+    };
+    const names = deriveRooms(reg, st)[0].lights!.map((l) => l.name).sort();
+    expect(names).toEqual(['FromFriendly', 'FromOriginal', 'Override', 'light.four'].sort());
+  });
+});
