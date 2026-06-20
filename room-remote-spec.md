@@ -132,48 +132,57 @@ Each card type renders only if the room config includes entities of that type.
 
 ## 6. Configuration model
 
-A single `rooms.json` (editable by the user, not hard-coded) drives the whole UI. Example shape:
+**Rooms are derived from Home Assistant areas, not authored in a file.** HA is the
+central control plane: assigning entities to areas in HA's normal UI *is* how the
+screens are configured, and the change propagates to every remote over the socket
+it already holds. There is no central config file and no second backend. See
+`docs/superpowers/specs/2026-06-19-ha-area-driven-config-design.md` for the full
+design.
 
-```json
-{
-  "ha": {
-    "url": "wss://homeassistant.local:8123/api/websocket",
-    "outdoorTempEntity": "sensor.outdoor_temperature"
-  },
-  "deviceRoomLock": null,
-  "rooms": [
-    {
-      "id": "living",
-      "name": "Living Room",
-      "icon": "sofa",
-      "lights": [
-        { "name": "Ceiling", "entity": "light.living_ceiling" },
-        { "name": "Lamps", "entity": "light.living_lamps" }
-      ],
-      "scenes": [
-        { "name": "Movie", "entity": "scene.living_movie" },
-        { "name": "Evening", "entity": "scene.living_evening" },
-        { "name": "Off", "entity": "scene.living_off" }
-      ],
-      "climate": { "entity": "climate.living_room" },
-      "media": { "entity": "media_player.living_sonos" },
-      "covers": [
-        { "name": "Blinds", "entity": "cover.living_blinds" }
-      ]
-    }
-  ]
-}
-```
+### Room derivation
 
-Rules:
+On connect, read HA's registries over the existing WebSocket (all built-in
+commands — no custom integration): `config/area_registry/list`,
+`config/floor_registry/list`, `config/device_registry/list`,
+`config/entity_registry/list`, plus entity states from `subscribe_entities`. Then:
 
-- Any card key omitted for a room means that card is not rendered for that room.
-- `icon` maps to the built-in icon set (extend the set in the mockup as needed).
-- `deviceRoomLock` set to a room id pins the device to that room and hides the nav.
-- The auth token is **not** stored in this file (see security, section 7). It is provided separately at first run.
-- Validate the config on load and surface a clear error overlay if an entity is malformed.
+- Resolve each entity's area: `entity.area_id` if set, else its device's `area_id`.
+- Drop entities that are `hidden_by`/`disabled_by`, or `entity_category`
+  `config`/`diagnostic`.
+- An **area becomes a room** if it has ≥1 entity in `light`, `climate`,
+  `media_player` or `cover` (scenes alone do not create a room).
+- Group the area's entities by domain into the five cards: `light.*` → Lights,
+  `scene.*` assigned to the area → Scenes, `climate.*` → Climate,
+  `media_player.*` → Media, `cover.*` → Covers.
+- **A card renders only if the area has entities of that domain** (the
+  config-driven guardrail, now sourced from HA).
+- Room order: floor `level`, then area name. Display name: entity-registry
+  `name` → `friendly_name` → `original_name` → `entity_id`. Room name/icon from
+  the area; the area's mdi icon maps to the app's SVG icon set with a generic
+  fallback (the full MDI set is not bundled).
 
-A nice-to-have, not required for v1: a small settings screen to enter the HA URL and token, and to auto-discover rooms/entities from HA areas. v1 may use a hand-written `rooms.json`.
+### Push
+
+Subscribe to `area_registry_updated`, `entity_registry_updated`,
+`device_registry_updated`, `floor_registry_updated`; on any event re-fetch the
+affected registry and recompute rooms. Entity state changes already stream from
+`subscribe_entities`.
+
+### Per-device config (the only authored config)
+
+Areas cannot know which physical tablet is where, so a small amount of config is
+per-device, stored in `localStorage`, never in the repo:
+
+- HA URL + long-lived token, entered at first run (see security, section 7).
+- Optional **room-lock** for a wall device: `?lock=<area_id>` URL param or a
+  one-time local setting; pins the device to one room and hides the nav.
+- Optional outdoor-temperature sensor entity for the header.
+
+### Offline / mock
+
+`rooms.example.json` / `rooms.json` are an **offline fixture only** (reshaped into
+a fake registries-plus-states response so `deriveRooms()` runs identically online
+and off), not production config.
 
 ---
 
@@ -246,7 +255,7 @@ Prices move, so this document intentionally gives no figures. Price the chosen t
 
 1. **Scaffold.** SvelteKit + TS + Vite PWA. Port the mockup's CSS and component structure. Static mock data so the UI runs with no HA connection.
 2. **HA connection.** Integrate `home-assistant-js-websocket`: connect, authenticate with a token entered at runtime, subscribe to entity states, reconnect with backoff. Connection-status indicator.
-3. **Config layer.** Load and validate `rooms.json`. Wire rooms to the bottom nav and to live entities.
+3. **Config layer.** Read HA's area/floor/device/entity registries, `deriveRooms()` (section 6), wire rooms to the bottom nav and live entities, and subscribe to the registry-updated events to recompute on change. Per-device room-lock.
 4. **Cards, live.** Implement Lights, Climate, Media, Covers and Scenes against real entities, with debounced writes and correct service calls. Handle unavailable entities and capability differences (TRV vs full thermostat, position vs open/close covers).
 5. **Kiosk polish.** PWA manifest and service worker, full-screen behaviour, disable selection/long-press/pull-to-refresh, idle dim/screensaver, room-lock mode.
 6. **Tests and docs.** Unit tests for the state-to-UI mapping and service-call builders; a Playwright run against the mock backend; a README covering install, `rooms.json`, token setup and kiosk configuration.
@@ -269,7 +278,7 @@ Prices move, so this document intentionally gives no figures. Price the chosen t
 ## 11. Out of scope for v1 (note for later)
 
 - Light colour and colour-temperature control (leave room in the data model).
-- Auto-discovery of rooms from HA areas and an in-app settings/onboarding screen.
+- An in-app **visual config editor** and an onboarding wizard. Rooms now derive from HA areas automatically (section 6); first run is a minimal HA URL + token entry only. Per-card entity ordering is also out of scope for v1 (default alphabetical by display name).
 - Multi-home / multiple HA instances.
 - User accounts or per-user permissions on the device (handled by the single scoped HA token).
 - Voice control.

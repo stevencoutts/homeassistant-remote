@@ -28,7 +28,7 @@ HA is the single source of truth. This app is a thin view plus controller: subsc
 ## Guardrails
 
 - **No secrets in the repo or the built bundle.** The HA long-lived token is entered on the device at runtime and stored in `localStorage`. Commit `rooms.example.json`, never a real `rooms.json` with entity IDs or tokens. Add both `rooms.json` and any `.env` to `.gitignore`.
-- **Config-driven, not hard-coded.** Rooms and entities come from `rooms.json` (shape in spec section 6). A card type renders only if that room's config includes it.
+- **Config-driven, not hard-coded.** Rooms and entities are derived from Home Assistant areas (spec section 6); `rooms.json` is an offline fixture only. A card type renders only if the area has entities of that domain.
 - **Debounce continuous writes.** Brightness and volume drags must be debounced (~200 ms) so they do not flood HA with service calls.
 - **Reflect HA state, not optimistic-only state.** The UI follows entity state pushed from HA. Reconnect with backoff and show a clear disconnected state.
 - **Handle capability differences.** TRV vs full thermostat, covers with position vs open/close only, unavailable/off media players. Do not assume every entity supports every feature.
@@ -60,7 +60,7 @@ HA is the single source of truth. This app is a thin view plus controller: subsc
 
 1. Scaffold with static mock data so the UI runs offline.
 2. HA WebSocket connection: connect, auth, subscribe, reconnect.
-3. Config layer: load and validate `rooms.json`, wire the nav.
+3. Config layer: derive rooms from HA area/entity registries, subscribe to registry-updated events, wire the nav.
 4. Cards live against real entities with correct service calls and debounced writes.
 5. Kiosk polish: PWA manifest/service worker, full-screen, idle dim, room-lock mode.
 6. Tests + README.
