@@ -1,0 +1,24 @@
+# Build/install artefacts (regenerated in the image)
+node_modules
+build
+.svelte-kit
+.vite
+coverage
+playwright-report
+test-results
+
+# Repo/meta not needed at build time
+.git
+.gitignore
+.superpowers
+docs
+*.log
+.DS_Store
+
+# Never bake local config or secrets into the image
+# (credentials are entered at runtime in the browser)
+rooms.json
+static/rooms.json
+.env
+.env.*
+*.token

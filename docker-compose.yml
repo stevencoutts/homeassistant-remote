@@ -1,0 +1,8 @@
+services:
+  room-remote:
+    build: .
+    image: room-remote
+    container_name: room-remote
+    ports:
+      - "8085:80"
+    restart: unless-stopped

@@ -27,6 +27,17 @@ npm run test:e2e                    # Playwright e2e against the mock backend
 
 The app runs against a mock backend with no live Home Assistant instance required. Point it at a real instance only when you want live control.
 
+## Run with Docker
+
+Build a production image (the static SPA served by nginx) and run it:
+
+```bash
+docker compose up -d --build   # builds and serves on http://localhost:8085
+docker compose down            # stop and remove
+```
+
+Multi-stage build: Node compiles the static site, then `nginx:alpine` serves it — no Node at runtime (~100 MB image). It contains **no credentials**: open the app, then enter the HA URL and long-lived token on the setup screen (stored in the browser's `localStorage`). Change the host port via the `ports` mapping in `docker-compose.yml` (currently `8085:80`).
+
 ## Configuration
 
 All rooms and entities are defined in `rooms.json` (shape and rules in spec section 6). Copy the example and edit it:
