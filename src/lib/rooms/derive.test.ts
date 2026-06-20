@@ -67,6 +67,7 @@ describe('deriveRooms', () => {
       entities: [
         ent('light.hidden', { area_id: 'a', hidden_by: 'user' }),
         ent('light.disabled', { area_id: 'a', disabled_by: 'user' }),
+        ent('light.cfg', { area_id: 'a', entity_category: 'config' }),
         ent('sensor.diag', { area_id: 'a', entity_category: 'diagnostic' })
       ]
     };
