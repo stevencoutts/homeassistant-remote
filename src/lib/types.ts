@@ -19,12 +19,6 @@ export interface Room {
   covers?: NamedEntity[];
 }
 
-export interface RoomsConfig {
-  ha: { url: string; outdoorTempEntity?: string };
-  deviceRoomLock: string | null;
-  rooms: Room[];
-}
-
 // Mirrors home-assistant-js-websocket's HassEntity (the bits we use).
 export interface EntityState {
   entity_id: string;

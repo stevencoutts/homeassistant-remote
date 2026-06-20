@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { get } from 'svelte/store';
 import {
   lightToggleCall,
   brightnessCall,
@@ -6,8 +7,14 @@ import {
   hvacModeCall,
   volumeCall,
   coverPositionCall,
-  sceneCall
+  sceneCall,
+  setLightBrightness,
+  setVolume,
+  setCoverPosition
 } from './services';
+import { entities } from './stores';
+
+// --- Pure builder tests ---
 
 describe('service-call builders', () => {
   it('builds the correct HA service calls', () => {
@@ -32,5 +39,73 @@ describe('service-call builders', () => {
     expect(sceneCall('scene.x')).toEqual({
       domain: 'scene', service: 'turn_on', data: {}, target: { entity_id: 'scene.x' }
     });
+  });
+});
+
+// --- Optimistic slider tracking tests ---
+// Verifies that setLightBrightness / setVolume / setCoverPosition update the
+// entities store immediately (synchronously) in BOTH offline and connected modes,
+// so the on-screen slider value tracks live during a drag.
+
+vi.mock('./ha/connection', () => ({ getConnection: vi.fn() }));
+vi.mock('home-assistant-js-websocket', () => ({
+  callService: vi.fn(() => Promise.resolve())
+}));
+
+describe('slider optimistic store updates', () => {
+  let mockGetConnection: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    const connModule = await import('./ha/connection');
+    mockGetConnection = connModule.getConnection as ReturnType<typeof vi.fn>;
+
+    // Seed the store with known entity states.
+    entities.set({
+      'light.x': { entity_id: 'light.x', state: 'on', attributes: { brightness: 128 } },
+      'media_player.x': { entity_id: 'media_player.x', state: 'playing', attributes: { volume_level: 0.5 } },
+      'cover.x': { entity_id: 'cover.x', state: 'open', attributes: { current_position: 50 } }
+    });
+  });
+
+  it('setLightBrightness updates the store immediately when offline', () => {
+    mockGetConnection.mockReturnValue(null);
+    setLightBrightness('light.x', 50);
+    const map = get(entities);
+    expect(map['light.x'].attributes.brightness).toBe(Math.round((50 / 100) * 255));
+  });
+
+  it('setLightBrightness updates the store immediately when connected', () => {
+    mockGetConnection.mockReturnValue({} as object);
+    setLightBrightness('light.x', 75);
+    const map = get(entities);
+    expect(map['light.x'].attributes.brightness).toBe(Math.round((75 / 100) * 255));
+  });
+
+  it('setVolume updates the store immediately when offline', () => {
+    mockGetConnection.mockReturnValue(null);
+    setVolume('media_player.x', 30);
+    expect(get(entities)['media_player.x'].attributes.volume_level).toBeCloseTo(0.3);
+  });
+
+  it('setVolume updates the store immediately when connected', () => {
+    mockGetConnection.mockReturnValue({} as object);
+    setVolume('media_player.x', 60);
+    expect(get(entities)['media_player.x'].attributes.volume_level).toBeCloseTo(0.6);
+  });
+
+  it('setCoverPosition updates the store immediately when offline', () => {
+    mockGetConnection.mockReturnValue(null);
+    setCoverPosition('cover.x', 25);
+    const e = get(entities)['cover.x'];
+    expect(e.attributes.current_position).toBe(25);
+    expect(e.state).toBe('open');
+  });
+
+  it('setCoverPosition updates the store immediately when connected', () => {
+    mockGetConnection.mockReturnValue({} as object);
+    setCoverPosition('cover.x', 0);
+    const e = get(entities)['cover.x'];
+    expect(e.attributes.current_position).toBe(0);
+    expect(e.state).toBe('closed');
   });
 });

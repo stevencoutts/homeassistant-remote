@@ -48,7 +48,7 @@ export async function startHa(): Promise<void> {
 
   conn.addEventListener('ready', () => status.set('connected'));
   conn.addEventListener('disconnected', () => status.set('disconnected'));
-  status.set('connected');
+  // Status stays 'connecting' until rooms are ready; set 'connected' after first recompute below.
 
   subscribeEntities(conn, (hass) => {
     latestStates = toEntityMap(hass);
@@ -58,6 +58,7 @@ export async function startHa(): Promise<void> {
 
   latestRegistries = await fetchRegistries(conn);
   recompute();
+  status.set('connected');
 
   await subscribeRegistryEvents(conn, async () => {
     if (conn) {

@@ -34,7 +34,8 @@ export const sceneCall = (id: string) => call('scene', 'turn_on', id);
 function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) {
   const conn = getConnection();
   if (conn) {
-    callService(conn, c.domain, c.service, c.data, c.target);
+    callService(conn, c.domain, c.service, c.data, c.target)
+      .catch((err) => console.error('HA service call failed', err));
     return; // UI follows HA-pushed state
   }
   if (optimistic) {
@@ -52,15 +53,13 @@ export function toggleLight(id: string) {
 
 const writeBrightness = debounce((id: string, pct: number) => dispatch(brightnessCall(id, pct)), 200);
 export function setLightBrightness(id: string, pct: number) {
-  // Keep the on-screen % live offline; debounce the HA write so dragging doesn't flood it.
-  if (!getConnection()) {
-    entities.update((m) => {
-      const e = m[id];
-      return e ? { ...m, [id]: { ...e, state: 'on', attributes: { ...e.attributes, brightness: Math.round((pct / 100) * 255) } } } : m;
-    });
-    return;
-  }
-  writeBrightness(id, pct);
+  // Always update the store so the slider tracks live during drag (optimistic-then-reconciled).
+  // When connected, HA-pushed state reconciles shortly after; debounce the write to avoid flooding.
+  entities.update((m) => {
+    const e = m[id];
+    return e ? { ...m, [id]: { ...e, state: 'on', attributes: { ...e.attributes, brightness: Math.round((pct / 100) * 255) } } } : m;
+  });
+  if (getConnection()) writeBrightness(id, pct);
 }
 
 export function setTemperature(id: string, temp: number) {
@@ -77,26 +76,22 @@ export function mediaNext(id: string) { dispatch(nextCall(id)); }
 
 const writeVolume = debounce((id: string, pct: number) => dispatch(volumeCall(id, pct)), 200);
 export function setVolume(id: string, pct: number) {
-  if (!getConnection()) {
-    entities.update((m) => {
-      const e = m[id];
-      return e ? { ...m, [id]: { ...e, attributes: { ...e.attributes, volume_level: pct / 100 } } } : m;
-    });
-    return;
-  }
-  writeVolume(id, pct);
+  // Always update the store so the slider tracks live during drag (optimistic-then-reconciled).
+  entities.update((m) => {
+    const e = m[id];
+    return e ? { ...m, [id]: { ...e, attributes: { ...e.attributes, volume_level: pct / 100 } } } : m;
+  });
+  if (getConnection()) writeVolume(id, pct);
 }
 
 const writeCover = debounce((id: string, pos: number) => dispatch(coverPositionCall(id, pos)), 200);
 export function setCoverPosition(id: string, pos: number) {
-  if (!getConnection()) {
-    entities.update((m) => {
-      const e = m[id];
-      return e ? { ...m, [id]: { ...e, state: pos > 0 ? 'open' : 'closed', attributes: { ...e.attributes, current_position: pos } } } : m;
-    });
-    return;
-  }
-  writeCover(id, pos);
+  // Always update the store so the slider tracks live during drag (optimistic-then-reconciled).
+  entities.update((m) => {
+    const e = m[id];
+    return e ? { ...m, [id]: { ...e, state: pos > 0 ? 'open' : 'closed', attributes: { ...e.attributes, current_position: pos } } } : m;
+  });
+  if (getConnection()) writeCover(id, pos);
 }
 export function openCover(id: string) { dispatch(openCoverCall(id), (e) => ({ ...e, state: 'open', attributes: { ...e.attributes, current_position: 100 } })); }
 export function closeCover(id: string) { dispatch(closeCoverCall(id), (e) => ({ ...e, state: 'closed', attributes: { ...e.attributes, current_position: 0 } })); }
