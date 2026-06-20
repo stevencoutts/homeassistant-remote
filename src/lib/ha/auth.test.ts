@@ -16,7 +16,9 @@ describe('credential storage', () => {
       getItem(k: string) { return this._s[k] ?? null; },
       setItem(k: string, v: string) { this._s[k] = v; },
       removeItem(k: string) { delete this._s[k]; },
-      clear() { this._s = {}; }
+      clear() { this._s = {}; },
+      get length() { return Object.keys(this._s).length; },
+      key(i: number) { return Object.keys(this._s)[i] ?? null; }
     } as unknown as Storage;
   });
 
