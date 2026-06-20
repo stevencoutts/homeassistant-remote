@@ -13,7 +13,8 @@ import {
   setCoverPosition,
   setLights,
   lightsCall,
-  anyLightOn
+  anyLightOn,
+  mediaPlayPause
 } from './services';
 import { callService } from 'home-assistant-js-websocket';
 import { entities } from './stores';
@@ -171,5 +172,28 @@ describe('setLights (master toggle)', () => {
     expect(callService).toHaveBeenCalledWith({}, 'light', 'turn_off', {}, {
       entity_id: ['light.a', 'light.b']
     });
+  });
+});
+
+describe('mediaPlayPause', () => {
+  let mockGetConnection: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    const connModule = await import('./ha/connection');
+    mockGetConnection = connModule.getConnection as ReturnType<typeof vi.fn>;
+    mockGetConnection.mockReturnValue({} as object);
+    vi.mocked(callService).mockClear();
+  });
+
+  it('sends media_pause when the player is playing', () => {
+    entities.set({ 'media_player.x': { entity_id: 'media_player.x', state: 'playing', attributes: {} } });
+    mediaPlayPause('media_player.x');
+    expect(callService).toHaveBeenCalledWith({}, 'media_player', 'media_pause', {}, { entity_id: 'media_player.x' });
+  });
+
+  it('sends media_play when the player is not playing', () => {
+    entities.set({ 'media_player.x': { entity_id: 'media_player.x', state: 'paused', attributes: {} } });
+    mediaPlayPause('media_player.x');
+    expect(callService).toHaveBeenCalledWith({}, 'media_player', 'media_play', {}, { entity_id: 'media_player.x' });
   });
 });

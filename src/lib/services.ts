@@ -1,4 +1,5 @@
 import { callService } from 'home-assistant-js-websocket';
+import { get } from 'svelte/store';
 import { getConnection } from './ha/connection';
 import { activeScene, entities } from './stores';
 import { debounce } from './util/debounce';
@@ -20,7 +21,10 @@ export const lightToggleCall = (id: string) => call('light', 'toggle', id);
 export const brightnessCall = (id: string, pct: number) => call('light', 'turn_on', id, { brightness_pct: pct });
 export const temperatureCall = (id: string, temperature: number) => call('climate', 'set_temperature', id, { temperature });
 export const hvacModeCall = (id: string, hvac_mode: string) => call('climate', 'set_hvac_mode', id, { hvac_mode });
-export const playPauseCall = (id: string) => call('media_player', 'media_play_pause', id);
+// Explicit pause/play rather than the combined media_play_pause toggle, which
+// some players (e.g. Apple TV) do not honour.
+export const pauseCall = (id: string) => call('media_player', 'media_pause', id);
+export const playCall = (id: string) => call('media_player', 'media_play', id);
 export const prevCall = (id: string) => call('media_player', 'media_previous_track', id);
 export const nextCall = (id: string) => call('media_player', 'media_next_track', id);
 export const volumeCall = (id: string, pct: number) => call('media_player', 'volume_set', id, { volume_level: pct / 100 });
@@ -72,7 +76,11 @@ export function setHvacMode(id: string, mode: string) {
   dispatch(hvacModeCall(id, mode), (e) => ({ ...e, state: mode }));
 }
 export function mediaPlayPause(id: string) {
-  dispatch(playPauseCall(id), (e) => ({ ...e, state: e.state === 'playing' ? 'paused' : 'playing' }));
+  const playing = get(entities)[id]?.state === 'playing';
+  dispatch(playing ? pauseCall(id) : playCall(id), (e) => ({
+    ...e,
+    state: playing ? 'paused' : 'playing'
+  }));
 }
 export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }
