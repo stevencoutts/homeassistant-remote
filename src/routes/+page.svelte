@@ -89,11 +89,14 @@
 
   <main class="cards">
     {#if room}
-      {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
-      {#if room.scenes?.length}<ScenesCard roomId={room.id} scenes={room.scenes} />{/if}
-      {#if room.climate}<ClimateCard entity={room.climate.entity} />{/if}
-      {#if room.media}<MediaCard entity={room.media.entity} />{/if}
-      {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
+      <!-- Re-create the cards per room so collapse state starts at the overview each time. -->
+      {#key room.id}
+        {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
+        {#if room.scenes?.length}<ScenesCard roomId={room.id} scenes={room.scenes} />{/if}
+        {#if room.climate}<ClimateCard entity={room.climate.entity} />{/if}
+        {#if room.media}<MediaCard entity={room.media.entity} />{/if}
+        {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
+      {/key}
     {/if}
   </main>
 
