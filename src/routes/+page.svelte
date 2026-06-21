@@ -9,7 +9,6 @@
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
   import ClimateCard from '$lib/components/ClimateCard.svelte';
-  import WeatherCard from '$lib/components/WeatherCard.svelte';
   import MediaCard from '$lib/components/MediaCard.svelte';
   import CoverCard from '$lib/components/CoverCard.svelte';
 
@@ -104,8 +103,9 @@
     {#if room}
       <!-- Re-create the cards per room so collapse state starts at the overview each time. -->
       {#key room.id}
-        {#if room.weather}<WeatherCard entity={room.weather} />{/if}
-        {#if room.climate}<ClimateCard entity={room.climate.entity} />{/if}
+        {#if room.climate || room.weather}
+          <ClimateCard entity={room.climate?.entity ?? null} weather={room.weather ?? null} />
+        {/if}
         {#if room.media?.length}<MediaCard players={room.media} soundModes={room.soundModes ?? []} />{/if}
         {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
         {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
