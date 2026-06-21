@@ -47,7 +47,19 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
         .map((e) => ({ name: displayName(e), entity: e.entity_id }))
         .sort(byName);
 
-    const lights = pick('light');
+    // Some lights are exposed twice (e.g. native Hue + a SmartThings mirror).
+    // Keep one per name, preferring the Hue entity.
+    // ponytail: dedupes by name within an area; two real same-named lights collapse — rename them in HA if that bites.
+    const lightEnts = new Map<string, EntityEntry>();
+    for (const e of ents) {
+      if (domainOf(e.entity_id) !== 'light') continue;
+      const key = displayName(e).toLowerCase();
+      const cur = lightEnts.get(key);
+      if (!cur || (e.platform === 'hue' && cur.platform !== 'hue')) lightEnts.set(key, e);
+    }
+    const lights = [...lightEnts.values()]
+      .map((e) => ({ name: displayName(e), entity: e.entity_id }))
+      .sort(byName);
     const scenes = pick('scene');
     const climate = pick('climate')[0];
     const media = pick('media_player');

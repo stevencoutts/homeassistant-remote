@@ -25,6 +25,7 @@ export interface EntityEntry {
   hidden_by: string | null;
   disabled_by: string | null;
   entity_category: string | null;
+  platform?: string | null;
 }
 
 export interface Registries {

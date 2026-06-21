@@ -45,6 +45,19 @@ describe('deriveRooms', () => {
     expect(room.soundModes?.map((m) => m.name).sort()).toEqual(['Night Sound', 'Speech']);
   });
 
+  it('keeps the Hue light when the same light is mirrored by SmartThings', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'living', name: 'Living', icon: null, floor_id: null }],
+      entities: [
+        ent('light.hue_lamp', { area_id: 'living', original_name: 'Lamp', platform: 'hue' }),
+        ent('light.st_lamp', { area_id: 'living', original_name: 'Lamp', platform: 'smartthings' })
+      ]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.lights?.map((l) => l.entity)).toEqual(['light.hue_lamp']);
+  });
+
   it('attaches a home-level weather entity to rooms that have climate', () => {
     const reg: Registries = {
       ...empty,
