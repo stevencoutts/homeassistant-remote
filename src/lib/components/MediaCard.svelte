@@ -56,19 +56,26 @@
   $: muted = ve?.attributes.is_volume_muted === true;
   $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
 
-  // Sonos favourites (saved radio stations) for the speaker, loaded once per entity.
+  // Sonos favourites: try each non-Apple-TV player until one returns results,
+  // since some entities (e.g. Sonos group _3) don't support browse_media.
   let favourites: Favourite[] = [];
-  let favEntity = '';
-  $: if (volumeEntity && volumeEntity !== favEntity) {
-    favEntity = volumeEntity;
-    favourites = [];
-    console.log('[media] players:', players.map(p => p.entity), '| volumeEntity:', volumeEntity, '| entity:', entity);
-    loadFavourites(volumeEntity).then((f) => {
-      console.log('[media] favourites for', volumeEntity, ':', f.map(x => x.title));
-      if (favEntity === volumeEntity) favourites = f;
-    });
+  let favKey = '';
+  $: {
+    const key = players.map((p) => p.entity).join(',');
+    if (key !== favKey) {
+      favKey = key;
+      favourites = [];
+      const candidates = players
+        .filter((p) => !/apple.?tv/i.test(p.entity))
+        .map((p) => p.entity);
+      (async () => {
+        for (const id of candidates) {
+          const f = await loadFavourites(id);
+          if (f.length > 0 && favKey === key) { favourites = f; break; }
+        }
+      })();
+    }
   }
-  $: console.log('[media] show presets?', { favCount: favourites.length, entity, volumeEntity, match: entity === volumeEntity });
 </script>
 
 <div class="card wide media-card" class:has-art={!idle && attrs.entity_picture}>
@@ -141,7 +148,7 @@
     />
   </div>
 
-  {#if favourites.length && entity === volumeEntity}
+  {#if favourites.length && !/apple.?tv/i.test(entity)}
     <div class="presets">
       {#each favourites as f (f.contentId)}
         <button
