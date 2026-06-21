@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { connectLive, disconnect } from '$lib/ha/connection';
+  import { connectLive, connectViaProxy, disconnect, loadAppConfig } from '$lib/ha/connection';
   import { loadCredentials } from '$lib/ha/auth';
   import { showSettings } from '$lib/stores';
   import Settings from '$lib/components/Settings.svelte';
@@ -20,6 +20,7 @@
     typeof location !== 'undefined' ? new URLSearchParams(location.search).get('lock') : null;
 
   onMount(async () => {
+    // 1) Per-device credentials override everything.
     if (loadCredentials()) {
       try {
         await connectLive();
@@ -27,9 +28,21 @@
         disconnect();
         showSettings.set(true);
       }
-    } else {
-      showSettings.set(true);
+      return;
     }
+    // 2) Otherwise use the container's central proxy if it offers one.
+    const cfg = await loadAppConfig();
+    if (cfg.proxy) {
+      try {
+        await connectViaProxy();
+      } catch {
+        disconnect();
+        showSettings.set(true);
+      }
+      return;
+    }
+    // 3) Otherwise ask for credentials.
+    showSettings.set(true);
   });
 
   onMount(() => {

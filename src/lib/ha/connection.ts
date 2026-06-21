@@ -5,6 +5,7 @@ import {
   type Connection,
   type HassEntities
 } from 'home-assistant-js-websocket';
+import { base } from '$app/paths';
 import { loadCredentials } from './auth';
 import { fetchRegistries, subscribeRegistryEvents, type Registries } from './registries';
 import { deriveRooms } from '$lib/rooms/derive';
@@ -33,14 +34,9 @@ function toEntityMap(hass: HassEntities): EntityMap {
   return hass as unknown as EntityMap;
 }
 
-// Live HA connection. Requires stored credentials; rejects on failure so the
-// settings form can show the error. No offline fallback here.
-export async function connectLive(): Promise<void> {
-  const creds = loadCredentials();
-  if (!creds) throw new Error('No credentials stored');
-
+async function connectWith(hassUrl: string, token: string): Promise<void> {
   status.set('connecting');
-  const auth = createLongLivedTokenAuth(creds.url, creds.token);
+  const auth = createLongLivedTokenAuth(hassUrl, token);
 
   // ponytail: a timed-out createConnection may keep retrying in the background
   // until the next reload; acceptable for a wrong-URL setup mistake.
@@ -70,6 +66,31 @@ export async function connectLive(): Promise<void> {
       recompute();
     }
   });
+}
+
+// Live HA connection using per-device stored credentials.
+export async function connectLive(): Promise<void> {
+  const creds = loadCredentials();
+  if (!creds) throw new Error('No credentials stored');
+  await connectWith(creds.url, creds.token);
+}
+
+// Connect through the container's same-origin proxy (token injected server-side;
+// the token passed here is a placeholder the proxy ignores).
+export async function connectViaProxy(): Promise<void> {
+  await connectWith(window.location.origin, 'proxy');
+}
+
+// Whether the serving container provides a central proxy. No secrets in this file.
+export async function loadAppConfig(): Promise<{ proxy: boolean }> {
+  try {
+    const res = await fetch(`${base}/config.json`, { cache: 'no-cache' });
+    if (!res.ok) return { proxy: false };
+    const cfg = await res.json();
+    return { proxy: cfg?.proxy === true };
+  } catch {
+    return { proxy: false };
+  }
 }
 
 // Offline demo: run the same deriveRooms against the mock fixture.
