@@ -45,10 +45,22 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     const lights = pick('light');
     const scenes = pick('scene');
     const climate = pick('climate')[0];
-    const media = pick('media_player')[0];
+    const media = pick('media_player');
     const covers = pick('cover');
+    // Sonos (and similar) sound-mode switches, shown on the media card.
+    const soundModes = ents
+      .filter(
+        (e) =>
+          domainOf(e.entity_id) === 'switch' &&
+          (e.entity_id.endsWith('_night_sound') || e.entity_id.endsWith('_speech_enhancement'))
+      )
+      .map((e) => ({
+        name: e.entity_id.endsWith('_night_sound') ? 'Night Sound' : 'Speech',
+        entity: e.entity_id
+      }))
+      .sort(byName);
 
-    if (!lights.length && !climate && !media && !covers.length) continue;
+    if (!lights.length && !climate && !media.length && !covers.length) continue;
 
     const room: Room & { _level: number } = {
       id: area.area_id,
@@ -59,7 +71,8 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     if (lights.length) room.lights = lights;
     if (scenes.length) room.scenes = scenes;
     if (climate) room.climate = { entity: climate.entity };
-    if (media) room.media = { entity: media.entity };
+    if (media.length) room.media = media;
+    if (soundModes.length) room.soundModes = soundModes;
     if (covers.length) room.covers = covers;
     rooms.push(room);
   }

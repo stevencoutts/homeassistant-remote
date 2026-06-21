@@ -74,9 +74,9 @@
       const t = $entities[room.climate.entity]?.attributes.current_temperature;
       if (t != null) bits.push(`${t.toFixed(1)}°C`);
     }
-    if (room.media) {
-      const s = $entities[room.media.entity]?.state;
-      if (s === 'playing' || s === 'paused') bits.push(s);
+    if (room.media?.length) {
+      if (room.media.some((m) => $entities[m.entity]?.state === 'playing')) bits.push('playing');
+      else if (room.media.some((m) => $entities[m.entity]?.state === 'paused')) bits.push('paused');
     }
     return bits.join(' · ');
   }
@@ -107,7 +107,7 @@
         {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
         {#if room.scenes?.length}<ScenesCard roomId={room.id} scenes={room.scenes} />{/if}
         {#if room.climate}<ClimateCard entity={room.climate.entity} />{/if}
-        {#if room.media}<MediaCard entity={room.media.entity} />{/if}
+        {#if room.media?.length}<MediaCard players={room.media} soundModes={room.soundModes ?? []} />{/if}
         {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
       {/key}
     {/if}

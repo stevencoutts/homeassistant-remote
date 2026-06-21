@@ -2,7 +2,7 @@ import { callService } from 'home-assistant-js-websocket';
 import { get } from 'svelte/store';
 import { getConnection } from './ha/connection';
 import { activeScene, entities } from './stores';
-import { debounce } from './util/debounce';
+import { debounce, throttle } from './util/debounce';
 import type { EntityState, EntityMap } from './types';
 
 export interface ServiceCall {
@@ -33,6 +33,8 @@ export const openCoverCall = (id: string) => call('cover', 'open_cover', id);
 export const closeCoverCall = (id: string) => call('cover', 'close_cover', id);
 export const stopCoverCall = (id: string) => call('cover', 'stop_cover', id);
 export const sceneCall = (id: string) => call('scene', 'turn_on', id);
+export const muteCall = (id: string, mute: boolean) => call('media_player', 'volume_mute', id, { is_volume_muted: mute });
+export const switchToggleCall = (id: string) => call('switch', 'toggle', id);
 
 // --- Dispatcher: live HA when connected, optimistic local mutation when offline-mock ---
 function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) {
@@ -84,8 +86,16 @@ export function mediaPlayPause(id: string) {
 }
 export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }
+export function mediaMute(id: string, mute: boolean) {
+  dispatch(muteCall(id, mute), (e) => ({ ...e, attributes: { ...e.attributes, is_volume_muted: mute } }));
+}
+export function toggleSoundMode(id: string) {
+  const on = get(entities)[id]?.state === 'on';
+  dispatch(switchToggleCall(id), (e) => ({ ...e, state: on ? 'off' : 'on' }));
+}
 
-const writeVolume = debounce((id: string, pct: number) => dispatch(volumeCall(id, pct)), 200);
+// Throttled (not debounced) so the speaker tracks the slider during a drag.
+const writeVolume = throttle((id: string, pct: number) => dispatch(volumeCall(id, pct)), 120);
 export function setVolume(id: string, pct: number) {
   // Always update the store so the slider tracks live during drag (optimistic-then-reconciled).
   entities.update((m) => {

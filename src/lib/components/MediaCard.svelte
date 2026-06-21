@@ -1,15 +1,35 @@
 <script lang="ts">
   import { entities } from '$lib/stores';
   import { icons } from '$lib/icons';
-  import { mediaPlayPause, mediaPrevious, mediaNext, setVolume } from '$lib/services';
+  import {
+    mediaPlayPause,
+    mediaPrevious,
+    mediaNext,
+    setVolume,
+    mediaMute,
+    toggleSoundMode
+  } from '$lib/services';
+  import type { NamedEntity } from '$lib/types';
 
-  export let entity: string;
+  export let players: NamedEntity[];
+  export let soundModes: NamedEntity[] = [];
 
-  $: e = $entities[entity];
+  let selectedIdx = 0;
+  let userPicked = false;
+
+  // Until the user picks, follow whichever player is playing.
+  $: if (!userPicked) {
+    const i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
+    selectedIdx = i >= 0 ? i : 0;
+  }
+  $: if (selectedIdx >= players.length) selectedIdx = 0;
+
+  $: entity = players[selectedIdx]?.entity;
+  $: e = entity ? $entities[entity] : undefined;
   $: attrs = e?.attributes ?? {};
-  // Gracefully handle off/unavailable players: idle state, transport disabled.
   $: idle = !e || e.state === 'off' || e.state === 'unavailable' || e.state === 'standby';
   $: playing = e?.state === 'playing';
+  $: muted = attrs.is_volume_muted === true;
   $: vol = Math.round((attrs.volume_level ?? 0) * 100);
 </script>
 
@@ -18,6 +38,22 @@
     <div class="label"><span class="icon">{@html icons.media}</span>Media</div>
     <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
   </div>
+
+  {#if players.length > 1}
+    <div class="chips">
+      {#each players as p, i (p.entity)}
+        <button
+          class="chip {i === selectedIdx ? 'active' : ''}"
+          on:click={() => {
+            selectedIdx = i;
+            userPicked = true;
+          }}
+        >
+          {$entities[p.entity]?.state === 'playing' ? '● ' : ''}{p.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   <div class="media-now">
     <div class="art" style={attrs.entity_picture ? `background-image:url(${attrs.entity_picture})` : ''}>
@@ -43,7 +79,15 @@
   </div>
 
   <div class="vol-row">
-    {@html icons.vol}
+    <button
+      class="t-btn"
+      aria-label="Mute"
+      aria-pressed={muted}
+      disabled={idle}
+      on:click={() => mediaMute(entity, !muted)}
+    >
+      {@html muted ? icons.volMuted : icons.vol}
+    </button>
     <input
       type="range"
       class="blue"
@@ -55,4 +99,17 @@
       on:input={(ev) => setVolume(entity, +ev.currentTarget.value)}
     />
   </div>
+
+  {#if soundModes.length}
+    <div class="chips">
+      {#each soundModes as s (s.entity)}
+        <button
+          class="chip {$entities[s.entity]?.state === 'on' ? 'active' : ''}"
+          on:click={() => toggleSoundMode(s.entity)}
+        >
+          {s.name}
+        </button>
+      {/each}
+    </div>
+  {/if}
 </div>

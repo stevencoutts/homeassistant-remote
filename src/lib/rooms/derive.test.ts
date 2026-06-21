@@ -29,6 +29,22 @@ describe('mapAreaIcon', () => {
 });
 
 describe('deriveRooms', () => {
+  it('collects multiple media players and sound-mode switches', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'living', name: 'Living', icon: null, floor_id: null }],
+      entities: [
+        ent('media_player.sonos_beam', { area_id: 'living', original_name: 'Sonos' }),
+        ent('media_player.apple_tv', { area_id: 'living', original_name: 'Apple TV' }),
+        ent('switch.sonos_beam_night_sound', { area_id: 'living' }),
+        ent('switch.sonos_beam_speech_enhancement', { area_id: 'living' })
+      ]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.media?.map((m) => m.entity)).toEqual(['media_player.apple_tv', 'media_player.sonos_beam']);
+    expect(room.soundModes?.map((m) => m.name).sort()).toEqual(['Night Sound', 'Speech']);
+  });
+
   it('makes a room from an area that has a control entity, grouped by domain', () => {
     const reg: Registries = {
       ...empty,

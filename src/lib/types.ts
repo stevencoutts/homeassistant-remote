@@ -15,7 +15,8 @@ export interface Room {
   lights?: NamedEntity[];
   scenes?: NamedEntity[];
   climate?: { entity: string };
-  media?: { entity: string };
+  media?: NamedEntity[];
+  soundModes?: NamedEntity[];
   covers?: NamedEntity[];
 }
 
