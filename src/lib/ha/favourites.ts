@@ -33,12 +33,34 @@ export async function loadFavourites(entity_id: string): Promise<Favourite[]> {
   if (!getConnection()) return [];
   try {
     const root = await browse(entity_id);
+    // ponytail: temporary diagnostic — remove once the favourites path is confirmed.
+    console.log(
+      '[favourites] root children:',
+      (root.children ?? []).map((c) => ({
+        title: c.title,
+        type: c.media_content_type,
+        id: c.media_content_id,
+        can_play: c.can_play,
+        can_expand: c.can_expand
+      }))
+    );
     const favNode = root.children?.find(
       (c) => /favorit/i.test(c.title) || /favorit/i.test(c.media_content_type)
     );
     const node = favNode
       ? await browse(entity_id, favNode.media_content_id, favNode.media_content_type)
       : root;
+    console.log(
+      '[favourites] favNode:',
+      favNode?.title,
+      '→ children:',
+      (node.children ?? []).map((c) => ({
+        title: c.title,
+        type: c.media_content_type,
+        can_play: c.can_play,
+        can_expand: c.can_expand
+      }))
+    );
     return (node.children ?? [])
       .filter((c) => c.can_play)
       .map((c) => ({
