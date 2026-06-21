@@ -70,11 +70,11 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       .sort(byName);
     const scenes = pick('scene');
     const climate = pick('climate')[0];
-    // Drop Sonos group/coordinator entities — Sonos exposes both individual
-    // speakers and a room-level group player (entity_id == area_id pattern, e.g.
-    // media_player.living_room for area living_room). Keep individual speakers only.
+    // Drop Sonos group/coordinator entities — Sonos exposes a room-level group
+    // player whose friendly name matches the area name (e.g. "Living Room").
+    // Keep individual speakers (Apple TV, Sonos Beam, etc.) only.
     const media = pick('media_player').filter(
-      (p) => p.entity !== `media_player.${area.area_id}`
+      (p) => p.name.toLowerCase() !== area.name.toLowerCase()
     );
     const covers = pick('cover');
     // Sonos (and similar) sound-mode switches, shown on the media card.
