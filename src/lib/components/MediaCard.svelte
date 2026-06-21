@@ -17,12 +17,14 @@
   let selectedIdx = 0;
   let userPicked = false;
 
-  // Until the user picks, prefer a playing source with real now-playing info
-  // (e.g. the Apple TV) over a speaker merely relaying it (e.g. the Beam).
+  // Until the user picks, prefer the actual source (e.g. Apple TV showing
+  // "BBC 1") over a speaker merely relaying it (e.g. the Beam showing
+  // "TV audio"). The relay is usually a Sonos, so it loses the tiebreak.
   $: if (!userPicked) {
-    let i = players.findIndex(
-      (p) => $entities[p.entity]?.state === 'playing' && $entities[p.entity]?.attributes.media_title
-    );
+    const playingTitled = (p: NamedEntity) =>
+      $entities[p.entity]?.state === 'playing' && $entities[p.entity]?.attributes.media_title;
+    let i = players.findIndex((p) => playingTitled(p) && !/sonos/i.test(p.entity));
+    if (i < 0) i = players.findIndex(playingTitled);
     if (i < 0) i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
     selectedIdx = i >= 0 ? i : 0;
   }
