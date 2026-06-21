@@ -56,22 +56,28 @@
   $: muted = ve?.attributes.is_volume_muted === true;
   $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
 
-  // Sonos favourites: try each non-Apple-TV player until one returns results,
-  // since some entities (e.g. Sonos group _3) don't support browse_media.
+  // Sonos favourites: try each non-Apple-TV player until one returns results.
+  // Track which entity owns the favourites so we only show them on that tab.
   let favourites: Favourite[] = [];
+  let favouritesOwner = '';
   let favKey = '';
   $: {
     const key = players.map((p) => p.entity).join(',');
     if (key !== favKey) {
       favKey = key;
       favourites = [];
+      favouritesOwner = '';
       const candidates = players
         .filter((p) => !/apple.?tv/i.test(p.entity))
         .map((p) => p.entity);
       (async () => {
         for (const id of candidates) {
           const f = await loadFavourites(id);
-          if (f.length > 0 && favKey === key) { favourites = f; break; }
+          if (f.length > 0 && favKey === key) {
+            favourites = f;
+            favouritesOwner = id;
+            break;
+          }
         }
       })();
     }
@@ -148,7 +154,7 @@
     />
   </div>
 
-  {#if favourites.length && !/apple.?tv/i.test(entity)}
+  {#if favourites.length && entity === favouritesOwner}
     <div class="presets">
       {#each favourites as f (f.contentId)}
         <button
