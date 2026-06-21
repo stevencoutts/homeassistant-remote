@@ -55,7 +55,10 @@
   $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
 </script>
 
-<div class="card wide">
+<div class="card wide media-card" class:has-art={!idle && attrs.entity_picture}>
+  {#if !idle && attrs.entity_picture}
+    <div class="art-bg" style="background-image:url({attrs.entity_picture})"></div>
+  {/if}
   <div class="card-head">
     <div class="label"><span class="icon">{@html icons.media}</span>Media</div>
     <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
@@ -135,3 +138,25 @@
     </div>
   {/if}
 </div>
+
+<style>
+  /* Now-playing artwork as a soft backdrop; content sits above it. */
+  .media-card {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .media-card.has-art > :global(*:not(.art-bg)) {
+    position: relative;
+    z-index: 1;
+  }
+  .art-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(18px) brightness(0.45) saturate(1.1);
+    transform: scale(1.2);
+  }
+</style>
