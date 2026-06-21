@@ -41,8 +41,12 @@
   // else any volume-capable player, else the selected one. (VOLUME_SET = bit 4.)
   $: volumeEntity = (() => {
     const sv = (id: string) => (($entities[id]?.attributes.supported_features ?? 0) & 4) !== 0;
+    // Prefer a Sonos-named speaker, then any non-Apple-TV volume-capable player
+    // (catches Sonos entities named after the room, e.g. media_player.conservatory),
+    // then any volume-capable player, then the selected entity.
     return (
       players.find((p) => /sonos/i.test(p.entity) && sv(p.entity))?.entity ??
+      players.find((p) => !/apple.?tv/i.test(p.entity) && sv(p.entity))?.entity ??
       players.find((p) => sv(p.entity))?.entity ??
       entity
     );
