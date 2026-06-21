@@ -218,24 +218,24 @@
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 36px;
-    max-width: 9rem;
-    padding: 4px 10px;
+    gap: 5px;
+    min-height: 28px;
+    max-width: 8rem;
+    padding: 3px 8px;
     border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.06);
     color: inherit;
-    font: inherit;
+    font-size: 0.72rem;
     cursor: pointer;
   }
   .preset:active {
     background: rgba(255, 255, 255, 0.14);
   }
   .preset img {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
     object-fit: cover;
     flex: 0 0 auto;
   }
