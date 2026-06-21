@@ -41,15 +41,13 @@
   // else any volume-capable player, else the selected one. (VOLUME_SET = bit 4.)
   $: volumeEntity = (() => {
     const sv = (id: string) => (($entities[id]?.attributes.supported_features ?? 0) & 4) !== 0;
-    // Prefer a Sonos-named speaker, then any non-Apple-TV volume-capable player
-    // (catches Sonos entities named after the room, e.g. media_player.conservatory),
-    // then any volume-capable player, then the selected entity.
-    return (
-      players.find((p) => /sonos/i.test(p.entity) && sv(p.entity))?.entity ??
-      players.find((p) => !/apple.?tv/i.test(p.entity) && sv(p.entity))?.entity ??
-      players.find((p) => sv(p.entity))?.entity ??
-      entity
-    );
+    // If the room has a Sonos speaker (identifiable by entity_id containing
+    // "sonos"), route all volume through it — Apple TV sends audio via AirPlay
+    // so the Beam is the real volume control (living room pattern).
+    // Otherwise each player controls its own volume (conservatory pattern).
+    const sonosPlayer = players.find((p) => /sonos/i.test(p.entity) && sv(p.entity));
+    if (sonosPlayer) return sonosPlayer.entity;
+    return (entity && sv(entity) ? entity : players.find((p) => sv(p.entity))?.entity ?? entity);
   })();
   $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
