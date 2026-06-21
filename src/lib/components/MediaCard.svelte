@@ -138,7 +138,7 @@
     />
   </div>
 
-  {#if favourites.length}
+  {#if favourites.length && entity === volumeEntity}
     <div class="presets">
       {#each favourites as f (f.contentId)}
         <button
