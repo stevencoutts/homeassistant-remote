@@ -20,10 +20,12 @@ interface BrowseResult {
 function browse(entity_id: string, media_content_id?: string, media_content_type?: string) {
   const conn = getConnection();
   if (!conn) return Promise.reject(new Error('no connection'));
+  // The favourites node uses an empty media_content_id, so key off the type:
+  // when a type is given, send both (id may legitimately be '').
   return conn.sendMessagePromise<BrowseResult>({
     type: 'media_player/browse_media',
     entity_id,
-    ...(media_content_id ? { media_content_id, media_content_type } : {})
+    ...(media_content_type ? { media_content_id: media_content_id ?? '', media_content_type } : {})
   });
 }
 
