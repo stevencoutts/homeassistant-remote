@@ -29,48 +29,46 @@ function browse(entity_id: string, media_content_id?: string, media_content_type
   });
 }
 
-// Sonos exposes saved radio stations / playlists under a "Favorites" node.
-// Browse the root, descend into it if present, and return the playable items.
+// Collect playable items under a node, descending into folders up to `depth`
+// levels (Sonos nests favourites as Favorites → Radio/Playlists → stations).
+async function collectPlayable(
+  entity_id: string,
+  node: BrowseResult,
+  depth: number
+): Promise<Favourite[]> {
+  const out: Favourite[] = [];
+  for (const c of node.children ?? []) {
+    if (c.can_play) {
+      out.push({
+        title: c.title,
+        contentId: c.media_content_id,
+        contentType: c.media_content_type,
+        thumbnail: c.thumbnail
+      });
+    } else if (c.can_expand && depth > 0) {
+      const sub = await browse(entity_id, c.media_content_id, c.media_content_type);
+      out.push(...(await collectPlayable(entity_id, sub, depth - 1)));
+    }
+  }
+  return out;
+}
+
+// Sonos exposes saved radio stations / playlists under a "Favorites" node,
+// itself split into folders. Browse in and gather the playable leaves.
 export async function loadFavourites(entity_id: string): Promise<Favourite[]> {
   if (!getConnection()) return [];
   try {
     const root = await browse(entity_id);
-    // ponytail: temporary diagnostic — remove once the favourites path is confirmed.
-    console.log(
-      '[favourites] root children:',
-      (root.children ?? []).map((c) => ({
-        title: c.title,
-        type: c.media_content_type,
-        id: c.media_content_id,
-        can_play: c.can_play,
-        can_expand: c.can_expand
-      }))
-    );
     const favNode = root.children?.find(
       (c) => /favorit/i.test(c.title) || /favorit/i.test(c.media_content_type)
     );
     const node = favNode
       ? await browse(entity_id, favNode.media_content_id, favNode.media_content_type)
       : root;
-    console.log(
-      '[favourites] favNode:',
-      favNode?.title,
-      '→ children:',
-      (node.children ?? []).map((c) => ({
-        title: c.title,
-        type: c.media_content_type,
-        can_play: c.can_play,
-        can_expand: c.can_expand
-      }))
-    );
-    return (node.children ?? [])
-      .filter((c) => c.can_play)
-      .map((c) => ({
-        title: c.title,
-        contentId: c.media_content_id,
-        contentType: c.media_content_type,
-        thumbnail: c.thumbnail
-      }));
+    const favs = await collectPlayable(entity_id, node, 2);
+    // ponytail: temporary — remove once favourites are confirmed showing.
+    console.log('[favourites] collected:', favs.map((f) => f.title));
+    return favs;
   } catch (err) {
     console.error('Failed to load Sonos favourites', err);
     return [];
