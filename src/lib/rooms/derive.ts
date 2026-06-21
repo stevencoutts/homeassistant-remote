@@ -3,6 +3,10 @@ import type { EntityMap, Room } from '$lib/types';
 import { mapAreaIcon } from './iconMap';
 
 const domainOf = (id: string) => id.split('.')[0];
+// Sonos Night Sound / Speech Enhancement, shown on the media card. These are
+// 'config'-category switches in HA, so they bypass the config/diagnostic drop.
+const isSoundModeSwitch = (id: string) =>
+  id.startsWith('switch.') && (id.endsWith('_night_sound') || id.endsWith('_speech_enhancement'));
 const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 const NO_FLOOR = Number.MAX_SAFE_INTEGER;
 
@@ -22,7 +26,11 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
   const byArea = new Map<string, EntityEntry[]>();
   for (const e of reg.entities) {
     if (e.hidden_by || e.disabled_by) continue;
-    if (e.entity_category === 'config' || e.entity_category === 'diagnostic') continue;
+    if (
+      (e.entity_category === 'config' || e.entity_category === 'diagnostic') &&
+      !isSoundModeSwitch(e.entity_id)
+    )
+      continue;
     const area = areaOf(e);
     if (!area) continue;
     let arr = byArea.get(area);
@@ -66,11 +74,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     const covers = pick('cover');
     // Sonos (and similar) sound-mode switches, shown on the media card.
     const soundModes = ents
-      .filter(
-        (e) =>
-          domainOf(e.entity_id) === 'switch' &&
-          (e.entity_id.endsWith('_night_sound') || e.entity_id.endsWith('_speech_enhancement'))
-      )
+      .filter((e) => isSoundModeSwitch(e.entity_id))
       .map((e) => ({
         name: e.entity_id.endsWith('_night_sound') ? 'Night Sound' : 'Speech',
         entity: e.entity_id

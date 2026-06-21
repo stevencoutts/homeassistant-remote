@@ -36,8 +36,8 @@ describe('deriveRooms', () => {
       entities: [
         ent('media_player.sonos_beam', { area_id: 'living', original_name: 'Sonos' }),
         ent('media_player.apple_tv', { area_id: 'living', original_name: 'Apple TV' }),
-        ent('switch.sonos_beam_night_sound', { area_id: 'living' }),
-        ent('switch.sonos_beam_speech_enhancement', { area_id: 'living' })
+        ent('switch.sonos_beam_night_sound', { area_id: 'living', entity_category: 'config' }),
+        ent('switch.sonos_beam_speech_enhancement', { area_id: 'living', entity_category: 'config' })
       ]
     };
     const [room] = deriveRooms(reg, states);
