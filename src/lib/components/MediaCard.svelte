@@ -19,18 +19,14 @@
   let selectedIdx = 0;
   let userPicked = false;
 
-  // Until the user picks, show the actual source (e.g. Apple TV showing
-  // "BBC 1") rather than the speaker relaying it (e.g. the Beam showing
-  // "TV audio"). When audio is flowing, prefer a non-Sonos player that has a
-  // media_title — the source often reports state 'on'/'paused' while only the
-  // Beam reports 'playing', so we don't require the source's own state.
+  // Until the user picks, prefer a non-Sonos player that has a media_title
+  // (e.g. Apple TV showing "BBC 1") regardless of its exact state — Apple TV
+  // often reports 'on' or 'idle' while Emby is streaming through it, so
+  // requiring state==='playing' would always fall back to the Sonos relay.
   $: if (!userPicked) {
-    const anyPlaying = players.some((p) => $entities[p.entity]?.state === 'playing');
-    let i = anyPlaying
-      ? players.findIndex(
-          (p) => $entities[p.entity]?.attributes.media_title && !/sonos/i.test(p.entity)
-        )
-      : -1;
+    let i = players.findIndex(
+      (p) => $entities[p.entity]?.attributes.media_title && !/sonos/i.test(p.entity)
+    );
     if (i < 0) i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
     selectedIdx = i >= 0 ? i : 0;
   }

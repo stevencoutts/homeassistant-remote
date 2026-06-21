@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import sirv from 'sirv';
 import { WebSocketServer, WebSocket } from 'ws';
 import { bridge } from './bridge.js';
@@ -15,6 +17,21 @@ const server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'no-cache');
     res.end(JSON.stringify({ proxy: proxyEnabled }));
+    return;
+  }
+  // Proxy HA media thumbnail URLs (entity_picture is HA-relative).
+  if (proxyEnabled && req.url?.startsWith('/api/')) {
+    const target = new URL(req.url, HA_URL);
+    const lib = target.protocol === 'https:' ? httpsRequest : httpRequest;
+    const upstream = lib(target, { headers: { Authorization: `Bearer ${HA_TOKEN}` } }, (r) => {
+      res.writeHead(r.statusCode ?? 200, {
+        'content-type': r.headers['content-type'] ?? 'application/octet-stream',
+        'cache-control': 'max-age=60'
+      });
+      r.pipe(res);
+    });
+    upstream.on('error', () => res.writeHead(502).end());
+    upstream.end();
     return;
   }
   serve(req, res);
