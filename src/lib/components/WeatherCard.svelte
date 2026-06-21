@@ -49,7 +49,7 @@
 
 <style>
   .weather-emoji {
-    font-size: 2.6rem;
+    font-size: 2rem;
     line-height: 1;
   }
 </style>

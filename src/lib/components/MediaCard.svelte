@@ -199,9 +199,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 44px;
-    max-width: 11rem;
-    padding: 6px 12px;
+    min-height: 36px;
+    max-width: 9rem;
+    padding: 4px 10px;
     border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.06);
