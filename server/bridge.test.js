@@ -24,6 +24,8 @@ describe('bridge', () => {
 
     browser.emit('message', JSON.stringify({ type: 'auth', access_token: 'dummy' }));
     expect(browser.sent).toContain(JSON.stringify({ type: 'auth_ok', ha_version: '2025.1' }));
+    // Security invariant: the real token is never sent to the browser side.
+    expect(JSON.stringify(browser.sent)).not.toContain('REAL');
   });
 
   it('queues browser commands until upstream is authed, then relays both ways', () => {
