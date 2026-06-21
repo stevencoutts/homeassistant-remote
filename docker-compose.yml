@@ -3,6 +3,10 @@ services:
     build: .
     image: room-remote
     container_name: room-remote
+    # Central HA credentials live here only (host .env, gitignored).
+    env_file:
+      - path: .env
+        required: false
     ports:
-      - "8085:80"
+      - "8085:8080"
     restart: unless-stopped

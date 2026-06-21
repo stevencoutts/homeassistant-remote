@@ -2,6 +2,7 @@
 rooms.json
 .env
 .env.*
+!.env.example
 *.token
 
 # Dependencies and build output

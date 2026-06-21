@@ -29,14 +29,25 @@ The app runs against a mock backend with no live Home Assistant instance require
 
 ## Run with Docker
 
-Build a production image (the static SPA served by nginx) and run it:
+The container serves the app **and** proxies the Home Assistant WebSocket with
+the token injected server-side — so devices need no setup and the token never
+reaches a browser.
 
 ```bash
-docker compose up -d --build   # builds and serves on http://localhost:8085
-docker compose down            # stop and remove
+cp .env.example .env     # set HA_URL + HA_TOKEN (gitignored)
+docker compose up -d --build   # serves on http://localhost:8085
 ```
 
-Multi-stage build: Node compiles the static site, then `nginx:alpine` serves it — no Node at runtime (~100 MB image). It contains **no credentials**: open the app, then enter the HA URL and long-lived token on the setup screen (stored in the browser's `localStorage`). Change the host port via the `ports` mapping in `docker-compose.yml` (currently `8085:80`).
+`HA_URL` is reached from the *container* (e.g. your LAN `http://homeassistant.local:8123`).
+Open the app and it connects automatically. A device can still override centrally
+by entering its own URL/token in the gear ⚙ settings.
+
+Leave `.env` unset to serve static-only (each device enters its own credentials).
+
+**Security:** the proxy has no built-in login — anyone who can reach `:8085` can
+control HA (the blast radius of the wall switches it replaces, on a trusted LAN).
+Do not expose it to the internet without fronting it with auth (reverse-proxy
+basic auth, Cloudflare Access, etc.).
 
 ## Configuration
 

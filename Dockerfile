@@ -12,8 +12,13 @@ RUN npm install --no-audit --no-fund --ignore-scripts
 COPY . .
 RUN npm run build
 
-# --- Serve the static output with nginx ---
-FROM nginx:alpine AS runtime
-COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+# --- Serve the SPA + proxy the HA websocket (Node) ---
+FROM node:lts-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev --no-audit --no-fund --ignore-scripts
+COPY --from=build /app/build ./build
+COPY server ./server
+EXPOSE 8080
+CMD ["node", "server/index.js"]
