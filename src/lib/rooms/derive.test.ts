@@ -45,6 +45,16 @@ describe('deriveRooms', () => {
     expect(room.soundModes?.map((m) => m.name).sort()).toEqual(['Night Sound', 'Speech']);
   });
 
+  it('attaches a home-level weather entity to rooms that have climate', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'living', name: 'Living', icon: null, floor_id: null }],
+      entities: [ent('climate.living', { area_id: 'living' }), ent('weather.home', {})]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.weather).toBe('weather.home');
+  });
+
   it('makes a room from an area that has a control entity, grouped by domain', () => {
     const reg: Registries = {
       ...empty,

@@ -10,6 +10,7 @@
   import LightsCard from '$lib/components/LightsCard.svelte';
   import ScenesCard from '$lib/components/ScenesCard.svelte';
   import ClimateCard from '$lib/components/ClimateCard.svelte';
+  import WeatherCard from '$lib/components/WeatherCard.svelte';
   import MediaCard from '$lib/components/MediaCard.svelte';
   import CoverCard from '$lib/components/CoverCard.svelte';
 
@@ -107,6 +108,7 @@
         {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
         {#if room.scenes?.length}<ScenesCard roomId={room.id} scenes={room.scenes} />{/if}
         {#if room.climate}<ClimateCard entity={room.climate.entity} />{/if}
+        {#if room.weather}<WeatherCard entity={room.weather} />{/if}
         {#if room.media?.length}<MediaCard players={room.media} soundModes={room.soundModes ?? []} />{/if}
         {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
       {/key}

@@ -15,6 +15,7 @@ export interface Room {
   lights?: NamedEntity[];
   scenes?: NamedEntity[];
   climate?: { entity: string };
+  weather?: string; // a home-level weather.* entity, shown beside climate
   media?: NamedEntity[];
   soundModes?: NamedEntity[];
   covers?: NamedEntity[];

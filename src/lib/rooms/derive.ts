@@ -33,6 +33,11 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     arr.push(e);
   }
 
+  // Home-level weather entity (usually has no area); shown beside climate.
+  const weatherEntity = reg.entities.find(
+    (e) => e.entity_id.startsWith('weather.') && !e.hidden_by && !e.disabled_by
+  )?.entity_id;
+
   const rooms: (Room & { _level: number })[] = [];
   for (const area of reg.areas) {
     const ents = byArea.get(area.area_id) ?? [];
@@ -71,6 +76,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     if (lights.length) room.lights = lights;
     if (scenes.length) room.scenes = scenes;
     if (climate) room.climate = { entity: climate.entity };
+    if (climate && weatherEntity) room.weather = weatherEntity;
     if (media.length) room.media = media;
     if (soundModes.length) room.soundModes = soundModes;
     if (covers.length) room.covers = covers;

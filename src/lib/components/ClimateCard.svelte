@@ -27,7 +27,7 @@
   }
 </script>
 
-<div class="card wide">
+<div class="card">
   <div class="card-head">
     <div class="label"><span class="icon">{@html icons.thermo}</span>Climate</div>
     <div class="status">{current != null ? `now ${current.toFixed(1)}°C` : ''}</div>
