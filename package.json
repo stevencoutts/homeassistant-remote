@@ -24,6 +24,8 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "home-assistant-js-websocket": "^9.6.0"
+    "home-assistant-js-websocket": "^9.6.0",
+    "sirv": "^3.0.2",
+    "ws": "^8.21.0"
   }
 }
