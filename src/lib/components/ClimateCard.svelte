@@ -46,7 +46,10 @@
 
   <div class="mode-row">
     {#each MODES.filter(([m]) => modes.includes(m)) as [m, label] (m)}
-      <button class="mode {m} {e?.state === m ? 'active' : ''}" on:click={() => setHvacMode(entity, m)}>
+      <button
+        class="mode {m} {e?.state === m ? 'active' : ''} {m === 'heat' && attrs.hvac_action === 'heating' ? 'heating' : ''}"
+        on:click={() => setHvacMode(entity, m)}
+      >
         {label}
       </button>
     {/each}

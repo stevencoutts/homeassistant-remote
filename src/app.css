@@ -335,6 +335,13 @@ input[type="range"].blue::-moz-range-thumb {
   font-weight: 600;
 }
 .mode.active.heat {
+  /* Heat enabled but not actively heating: warm amber. */
+  background: rgba(255, 182, 72, 0.18);
+  border-color: var(--accent);
+  color: #ffd79a;
+}
+.mode.active.heat.heating {
+  /* Actively calling for heat (hvac_action = heating): red. */
   background: rgba(255, 107, 72, 0.18);
   border-color: var(--red);
   color: #ffb4a3;
