@@ -76,7 +76,10 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     const allMedia = pick('media_player');
     const areaNameLc = area.name.toLowerCase();
     const mediaWithout = allMedia.filter((p) => p.name.toLowerCase() !== areaNameLc);
-    const media = mediaWithout.length > 0 ? mediaWithout : allMedia;
+    // Only drop the area-named player (Sonos room group) when ≥2 individual
+    // speakers remain — if only 1 is left, the area-named entity IS the real
+    // speaker (e.g. a single Sonos in the conservatory named "Conservatory").
+    const media = mediaWithout.length >= 2 ? mediaWithout : allMedia;
     const covers = pick('cover');
     // Sonos (and similar) sound-mode switches, shown on the media card.
     const soundModes = ents
