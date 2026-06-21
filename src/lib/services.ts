@@ -35,6 +35,8 @@ export const stopCoverCall = (id: string) => call('cover', 'stop_cover', id);
 export const sceneCall = (id: string) => call('scene', 'turn_on', id);
 export const muteCall = (id: string, mute: boolean) => call('media_player', 'volume_mute', id, { is_volume_muted: mute });
 export const switchToggleCall = (id: string) => call('switch', 'toggle', id);
+export const playMediaCall = (id: string, contentId: string, contentType: string) =>
+  call('media_player', 'play_media', id, { media_content_id: contentId, media_content_type: contentType });
 
 // --- Dispatcher: live HA when connected, optimistic local mutation when offline-mock ---
 function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) {
@@ -83,6 +85,9 @@ export function mediaPlayPause(id: string) {
     ...e,
     state: playing ? 'paused' : 'playing'
   }));
+}
+export function playFavourite(id: string, contentId: string, contentType: string) {
+  dispatch(playMediaCall(id, contentId, contentType));
 }
 export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }

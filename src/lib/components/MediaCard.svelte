@@ -7,8 +7,10 @@
     mediaNext,
     setVolume,
     mediaMute,
-    toggleSoundMode
+    toggleSoundMode,
+    playFavourite
   } from '$lib/services';
+  import { loadFavourites, type Favourite } from '$lib/ha/favourites';
   import type { NamedEntity } from '$lib/types';
 
   export let players: NamedEntity[];
@@ -53,6 +55,17 @@
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
   $: muted = ve?.attributes.is_volume_muted === true;
   $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
+
+  // Sonos favourites (saved radio stations) for the speaker, loaded once per entity.
+  let favourites: Favourite[] = [];
+  let favEntity = '';
+  $: if (volumeEntity && volumeEntity !== favEntity) {
+    favEntity = volumeEntity;
+    favourites = [];
+    loadFavourites(volumeEntity).then((f) => {
+      if (favEntity === volumeEntity) favourites = f;
+    });
+  }
 </script>
 
 <div class="card wide media-card" class:has-art={!idle && attrs.entity_picture}>
@@ -125,6 +138,21 @@
     />
   </div>
 
+  {#if favourites.length}
+    <div class="presets">
+      {#each favourites as f (f.contentId)}
+        <button
+          class="preset"
+          title={f.title}
+          on:click={() => playFavourite(volumeEntity, f.contentId, f.contentType)}
+        >
+          {#if f.thumbnail}<img src={f.thumbnail} alt="" />{/if}
+          <span>{f.title}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   {#if soundModes.length}
     <div class="chips">
       {#each soundModes as s (s.entity)}
@@ -158,5 +186,46 @@
     background-position: center;
     filter: blur(18px) brightness(0.45) saturate(1.1);
     transform: scale(1.2);
+  }
+  /* Saved-station presets: a horizontally scrollable row of tap targets. */
+  .presets {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .presets::-webkit-scrollbar {
+    display: none;
+  }
+  .preset {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    max-width: 11rem;
+    padding: 6px 12px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .preset:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .preset img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex: 0 0 auto;
+  }
+  .preset span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>
