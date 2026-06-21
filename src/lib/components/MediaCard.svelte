@@ -17,9 +17,13 @@
   let selectedIdx = 0;
   let userPicked = false;
 
-  // Until the user picks, follow whichever player is playing.
+  // Until the user picks, prefer a playing source with real now-playing info
+  // (e.g. the Apple TV) over a speaker merely relaying it (e.g. the Beam).
   $: if (!userPicked) {
-    const i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
+    let i = players.findIndex(
+      (p) => $entities[p.entity]?.state === 'playing' && $entities[p.entity]?.attributes.media_title
+    );
+    if (i < 0) i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
     selectedIdx = i >= 0 ? i : 0;
   }
   $: if (selectedIdx >= players.length) selectedIdx = 0;
@@ -29,8 +33,20 @@
   $: attrs = e?.attributes ?? {};
   $: idle = !e || e.state === 'off' || e.state === 'unavailable' || e.state === 'standby';
   $: playing = e?.state === 'playing';
-  $: muted = attrs.is_volume_muted === true;
-  $: vol = Math.round((attrs.volume_level ?? 0) * 100);
+  // Volume/mute target the room's actual speaker: prefer a volume-capable Sonos,
+  // else any volume-capable player, else the selected one. (VOLUME_SET = bit 4.)
+  $: volumeEntity = (() => {
+    const sv = (id: string) => (($entities[id]?.attributes.supported_features ?? 0) & 4) !== 0;
+    return (
+      players.find((p) => /sonos/i.test(p.entity) && sv(p.entity))?.entity ??
+      players.find((p) => sv(p.entity))?.entity ??
+      entity
+    );
+  })();
+  $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
+  $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
+  $: muted = ve?.attributes.is_volume_muted === true;
+  $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
 </script>
 
 <div class="card wide">
@@ -83,8 +99,8 @@
       class="t-btn"
       aria-label="Mute"
       aria-pressed={muted}
-      disabled={idle}
-      on:click={() => mediaMute(entity, !muted)}
+      disabled={volIdle}
+      on:click={() => mediaMute(volumeEntity, !muted)}
     >
       {@html muted ? icons.volMuted : icons.vol}
     </button>
@@ -94,9 +110,9 @@
       min="0"
       max="100"
       value={vol}
-      disabled={idle}
+      disabled={volIdle}
       aria-label="Volume"
-      on:input={(ev) => setVolume(entity, +ev.currentTarget.value)}
+      on:input={(ev) => setVolume(volumeEntity, +ev.currentTarget.value)}
     />
   </div>
 
