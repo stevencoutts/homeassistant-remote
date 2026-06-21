@@ -62,10 +62,13 @@
   $: if (volumeEntity && volumeEntity !== favEntity) {
     favEntity = volumeEntity;
     favourites = [];
+    console.log('[media] players:', players.map(p => p.entity), '| volumeEntity:', volumeEntity, '| entity:', entity);
     loadFavourites(volumeEntity).then((f) => {
+      console.log('[media] favourites for', volumeEntity, ':', f.map(x => x.title));
       if (favEntity === volumeEntity) favourites = f;
     });
   }
+  $: console.log('[media] show presets?', { favCount: favourites.length, entity, volumeEntity, match: entity === volumeEntity });
 </script>
 
 <div class="card wide media-card" class:has-art={!idle && attrs.entity_picture}>
