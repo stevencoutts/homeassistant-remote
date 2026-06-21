@@ -69,6 +69,12 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       .map((e) => ({ name: displayName(e), entity: e.entity_id }))
       .sort(byName);
     const scenes = pick('scene');
+    // Power: user-facing switches (sockets, smart plugs). Sound-mode switches
+    // are handled separately on the media card and excluded here.
+    const power = ents
+      .filter((e) => domainOf(e.entity_id) === 'switch' && !isSoundModeSwitch(e.entity_id))
+      .map((e) => ({ name: displayName(e), entity: e.entity_id }))
+      .sort(byName);
     const climate = pick('climate')[0];
     // Sonos exposes a room-level group player alongside individual speakers.
     // Drop it if it matches the area name (e.g. "Living Room") but only when
@@ -90,7 +96,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       }))
       .sort(byName);
 
-    if (!lights.length && !climate && !media.length && !covers.length) continue;
+    if (!lights.length && !power.length && !climate && !media.length && !covers.length) continue;
 
     const room: Room & { _level: number } = {
       id: area.area_id,
@@ -99,6 +105,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       _level: area.floor_id ? floorLevel.get(area.floor_id) ?? NO_FLOOR : NO_FLOOR
     };
     if (lights.length) room.lights = lights;
+    if (power.length) room.power = power;
     if (scenes.length) room.scenes = scenes;
     if (climate) room.climate = { entity: climate.entity };
     if (climate && weatherEntity) room.weather = weatherEntity;

@@ -13,6 +13,7 @@ export interface Room {
   icon: string;
   // A card renders only if its key is present in the room config.
   lights?: NamedEntity[];
+  power?: NamedEntity[]; // switchable sockets/plugs, shown with lights
   scenes?: NamedEntity[];
   climate?: { entity: string };
   weather?: string; // a home-level weather.* entity, shown beside climate

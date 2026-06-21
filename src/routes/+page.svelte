@@ -107,7 +107,9 @@
           <ClimateCard entity={room.climate?.entity ?? null} weather={room.weather ?? null} />
         {/if}
         {#if room.media?.length}<MediaCard players={room.media} soundModes={room.soundModes ?? []} />{/if}
-        {#if room.lights?.length}<LightsCard lights={room.lights} />{/if}
+        {#if room.lights?.length || room.power?.length}
+          <LightsCard lights={room.lights ?? []} power={room.power ?? []} />
+        {/if}
         {#each room.covers ?? [] as cover (cover.entity)}<CoverCard {cover} />{/each}
       {/key}
     {/if}

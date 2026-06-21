@@ -45,6 +45,21 @@ describe('deriveRooms', () => {
     expect(room.soundModes?.map((m) => m.name).sort()).toEqual(['Night Sound', 'Speech']);
   });
 
+  it('collects user-facing switches as power, excluding sound-mode switches', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'living', name: 'Living', icon: null, floor_id: null }],
+      entities: [
+        ent('switch.tv_socket', { area_id: 'living', original_name: 'TV socket' }),
+        ent('switch.fan', { area_id: 'living', original_name: 'Fan' }),
+        ent('switch.sonos_beam_night_sound', { area_id: 'living', entity_category: 'config' })
+      ]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.power?.map((p) => p.entity)).toEqual(['switch.fan', 'switch.tv_socket']);
+    expect(room.soundModes?.map((m) => m.name)).toEqual(['Night Sound']);
+  });
+
   it('keeps the Hue light when the same light is mirrored by SmartThings', () => {
     const reg: Registries = {
       ...empty,

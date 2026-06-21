@@ -94,6 +94,10 @@ export function mediaNext(id: string) { dispatch(nextCall(id)); }
 export function mediaMute(id: string, mute: boolean) {
   dispatch(muteCall(id, mute), (e) => ({ ...e, attributes: { ...e.attributes, is_volume_muted: mute } }));
 }
+export function toggleSwitch(id: string) {
+  const on = get(entities)[id]?.state === 'on';
+  dispatch(switchToggleCall(id), (e) => ({ ...e, state: on ? 'off' : 'on' }));
+}
 export function toggleSoundMode(id: string) {
   const on = get(entities)[id]?.state === 'on';
   dispatch(switchToggleCall(id), (e) => ({ ...e, state: on ? 'off' : 'on' }));

@@ -13,6 +13,7 @@ interface Seed {
   climate?: string;
   media?: string;
   covers?: string[];
+  power?: string[];
 }
 
 interface SeedWithFloor extends Seed {
@@ -25,7 +26,8 @@ const SEEDS: SeedWithFloor[] = [
     area: 'living', name: 'Living Room', icon: 'mdi:sofa', floor: 'f0', level: 0,
     lights: ['Ceiling', 'Lamps', 'TV backlight'],
     scenes: ['Bright', 'Movie', 'Evening', 'Off'],
-    climate: 'living_room', media: 'living_sonos', covers: ['Blinds']
+    climate: 'living_room', media: 'living_sonos', covers: ['Blinds'],
+    power: ['TV socket', 'Fan']
   },
   {
     area: 'kitchen', name: 'Kitchen', icon: 'mdi:silverware-fork-knife', floor: 'f1', level: 1,
@@ -43,7 +45,8 @@ const SEEDS: SeedWithFloor[] = [
     area: 'office', name: 'Office', icon: 'mdi:desk', floor: 'f3', level: 3,
     lights: ['Desk', 'Ceiling'],
     scenes: ['Focus', 'Call', 'Off'],
-    climate: 'office', media: 'office_desktop', covers: ['Blinds']
+    climate: 'office', media: 'office_desktop', covers: ['Blinds'],
+    power: ['Monitor', 'Heater']
   },
   {
     area: 'bath', name: 'Bathroom', icon: 'mdi:shower', floor: 'f4', level: 4,
@@ -76,6 +79,7 @@ export function mockRegistries(): Registries {
     if (s.climate) entities.push(ent(`climate.${s.climate}`, s.area, s.name));
     if (s.media) entities.push(ent(`media_player.${s.media}`, s.area, s.name));
     s.covers?.forEach((n) => entities.push(ent(`cover.${s.area}_${slug(n)}`, s.area, n)));
+    s.power?.forEach((n) => entities.push(ent(`switch.${s.area}_${slug(n)}`, s.area, n)));
   }
 
   // Build unique floors from SEEDS
@@ -142,6 +146,8 @@ export function mockStates(reg: Registries): EntityMap {
       });
     } else if (domain === 'cover') {
       put(e.entity_id, 'open', { friendly_name: fn, current_position: 60, supported_features: 0xff });
+    } else if (domain === 'switch') {
+      put(e.entity_id, /socket|monitor/.test(e.entity_id) ? 'on' : 'off', { friendly_name: fn });
     }
   }
   return m;
