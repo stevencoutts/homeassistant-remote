@@ -34,6 +34,8 @@ const server = createServer((req, res) => {
     // of 401s from the X-Emby-Token header alone).
     if (!target.searchParams.has('api_key')) target.searchParams.set('api_key', EMBY_API_KEY);
     const lib = target.protocol === 'https:' ? httpsRequest : httpRequest;
+    // Diagnostic: log where we send the request and what comes back (key masked).
+    const where = `${target.protocol}//${target.host}${target.pathname}`;
     const upstream = lib(
       target,
       {
@@ -45,6 +47,7 @@ const server = createServer((req, res) => {
         }
       },
       (r) => {
+        console.log(`[emby] ${req.method} ${where} -> ${r.statusCode}`);
         res.writeHead(r.statusCode ?? 200, {
           'content-type': r.headers['content-type'] ?? 'application/json',
           'cache-control': 'no-cache'
@@ -52,7 +55,10 @@ const server = createServer((req, res) => {
         r.pipe(res);
       }
     );
-    upstream.on('error', () => res.writeHead(502).end());
+    upstream.on('error', (e) => {
+      console.error(`[emby] ${req.method} ${where} error: ${e.message}`);
+      res.writeHead(502).end();
+    });
     req.pipe(upstream);
     return;
   }
@@ -93,8 +99,11 @@ if (proxyEnabled) {
   console.log('room-remote: no HA_URL/HA_TOKEN — serving static only (devices use their own setup)');
 }
 
-server.listen(PORT, () =>
+server.listen(PORT, () => {
   console.log(
     `room-remote listening on :${PORT} (proxy ${proxyEnabled ? 'on' : 'off'}, emby ${embyEnabled ? 'on' : 'off'})`
-  )
-);
+  );
+  if (embyEnabled) {
+    console.log(`room-remote: EMBY_URL=${EMBY_URL} apiKeyLen=${EMBY_API_KEY.length}`);
+  }
+});
