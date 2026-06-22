@@ -17,9 +17,14 @@
   export let players: NamedEntity[];
   export let soundModes: NamedEntity[] = [];
 
-  // The room's Apple TV (if any) is the Emby Live TV play target.
-  $: appleTv = players.find((p) => /apple.?tv/i.test(p.entity));
-  // The Emby app's name as the Apple TV lists it, used to launch it via HA.
+  // When Emby is enabled, any video player in the room can be the guide target.
+  // We prefer a player whose entity or friendly name hints at a TV/AV device,
+  // but fall back to the first player so rooms with generic entity IDs still work.
+  $: appleTv = players.find((p) =>
+    /apple.?tv|google.?tv|chromecast|fire.?tv|android.?tv|shield|roku/i.test(p.entity) ||
+    /apple.?tv|google.?tv|chromecast|fire.?tv|android.?tv|shield|roku/i.test(p.name)
+  ) ?? players[0];
+  // The Emby app's name as the player lists it, used to launch it via HA.
   $: embySource = (() => {
     const list = appleTv ? $entities[appleTv.entity]?.attributes.source_list : undefined;
     if (Array.isArray(list)) {
