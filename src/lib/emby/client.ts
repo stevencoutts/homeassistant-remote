@@ -233,6 +233,15 @@ export async function findPlayTarget(hint?: string): Promise<PlayTarget | null> 
   return matchAppleTvSession(sessions, hint);
 }
 
+// Return all active video-client sessions so the UI can let the user pick.
+export async function listPlayTargets(): Promise<PlayTarget[]> {
+  if (!(await enabled())) return [{ sessionId: 'mock', name: 'TV (mock)' }];
+  const sessions = await embyGet<EmbySession[]>('/Sessions');
+  return sessions
+    .filter(isVideoClient)
+    .map((s) => ({ sessionId: s.Id, name: s.DeviceName ?? s.Client ?? 'TV' }));
+}
+
 export async function playChannel(sessionId: string, channelId: string): Promise<void> {
   if (!(await enabled())) return; // mock: no-op
   const q = new URLSearchParams({ ItemIds: channelId, PlayCommand: 'PlayNow' });

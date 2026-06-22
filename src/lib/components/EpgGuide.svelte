@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { icons } from '$lib/icons';
-  import { getChannels, getGuide, findPlayTarget, playChannel } from '$lib/emby/client';
+  import { getChannels, getGuide, findPlayTarget, listPlayTargets, playChannel } from '$lib/emby/client';
   import { mediaTurnOn, mediaSelectSource } from '$lib/services';
   import type { Channel, Programme, PlayTarget } from '$lib/emby/types';
 
@@ -40,12 +40,31 @@
   let toast = '';
   let toastTimer: ReturnType<typeof setTimeout>;
 
+  // Per-room device preference stored in localStorage so the user only picks once.
+  const storageKey = `emby_device:${appleTvHint}`;
+  let allTargets: PlayTarget[] = [];
+  let showPicker = false;
+  let pendingProgramme: Programme | null = null;
+
+  function loadStoredTarget(): PlayTarget | null {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return null;
+      return JSON.parse(raw) as PlayTarget;
+    } catch { return null; }
+  }
+  function storeTarget(t: PlayTarget) {
+    try { localStorage.setItem(storageKey, JSON.stringify(t)); } catch {}
+  }
+
   onMount(async () => {
-    // The session lookup must not block loading the guide — the guide comes from
-    // the Emby server, the session only matters when you press play (and we wake
-    // the Apple TV then). So look it up best-effort and swallow failures.
+    // Load stored device preference for this room (best-effort; non-blocking).
+    const stored = loadStoredTarget();
+    if (stored) target = stored;
+
+    // Refresh the session list in the background to show the live device name.
     findPlayTarget(appleTvHint)
-      .then((t) => (target = t))
+      .then((t) => { if (t) target = t; })
       .catch((e) => console.error('Emby session lookup failed', e));
 
     try {
@@ -86,16 +105,38 @@
 
   const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  // Ensure there is a live Emby session to play to. Always fetches fresh —
-  // session IDs change when the device sleeps or backgrounds the app, so a
-  // cached ID produces a silent 404. Wake the device via HA if no session found.
   let waking = false;
-  async function ensureTarget(): Promise<PlayTarget | null> {
-    // Try a fresh lookup first — fast path when Emby is already open.
-    const fresh = await findPlayTarget(appleTvHint);
-    if (fresh) { target = fresh; return fresh; }
 
-    // No session: wake the device and wait for Emby to register.
+  // Get a confirmed fresh session for the stored/preferred device, or wake it.
+  async function resolveTarget(preferredName?: string): Promise<PlayTarget | null> {
+    const sessions = await listPlayTargets();
+    if (!sessions.length) return null;
+
+    // If we have a preferred device name, find that session by exact name.
+    if (preferredName) {
+      const match = sessions.find((s) => s.name === preferredName);
+      if (match) return match;
+    }
+
+    // One candidate — no ambiguity, use it.
+    if (sessions.length === 1) return sessions[0];
+
+    return null; // ambiguous — caller will show picker
+  }
+
+  async function ensureTarget(): Promise<PlayTarget | null> {
+    const stored = loadStoredTarget();
+    const fresh = await resolveTarget(stored?.name);
+    if (fresh) { target = fresh; storeTarget(fresh); return fresh; }
+
+    // Multiple sessions with no stored preference — need the user to pick.
+    const sessions = await listPlayTargets();
+    if (sessions.length > 1) {
+      allTargets = sessions;
+      return null; // play() will show the picker
+    }
+
+    // No sessions at all — try to wake the device.
     if (!appleTvEntity) return null;
     waking = true;
     flash('Starting Emby on the device…');
@@ -104,8 +145,8 @@
     try {
       for (let i = 0; i < 12; i++) {
         await delay(1500);
-        const t = await findPlayTarget(appleTvHint);
-        if (t) { target = t; return t; }
+        const t = await resolveTarget(stored?.name);
+        if (t) { target = t; storeTarget(t); return t; }
       }
       return null;
     } finally {
@@ -115,10 +156,31 @@
 
   async function play(p: Programme) {
     const t = await ensureTarget();
+    if (!t && allTargets.length > 1) {
+      // Show picker — resume play after the user selects a device.
+      pendingProgramme = p;
+      showPicker = true;
+      return;
+    }
     if (!t) {
       flash('Could not reach the device. Open Emby on it and try again.');
       return;
     }
+    await doPlay(t, p);
+  }
+
+  async function pickDevice(t: PlayTarget) {
+    storeTarget(t);
+    target = t;
+    showPicker = false;
+    if (pendingProgramme) {
+      const p = pendingProgramme;
+      pendingProgramme = null;
+      await doPlay(t, p);
+    }
+  }
+
+  async function doPlay(t: PlayTarget, p: Programme) {
     try {
       await playChannel(t.sessionId, p.channelId);
       flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
@@ -201,6 +263,19 @@
   {/if}
 
   {#if toast}<div class="epg-toast">{toast}</div>{/if}
+
+  {#if showPicker}
+    <div class="epg-picker-overlay">
+      <div class="epg-picker">
+        <div class="epg-picker-title">Which device for {appleTvHint || 'this room'}?</div>
+        <div class="epg-picker-sub">This choice is saved — you won't be asked again.</div>
+        {#each allTargets as t (t.sessionId)}
+          <button class="epg-picker-btn" on:click={() => pickDevice(t)}>{t.name}</button>
+        {/each}
+        <button class="epg-picker-cancel" on:click={() => { showPicker = false; pendingProgramme = null; }}>Cancel</button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -408,5 +483,59 @@
     padding: 10px 18px;
     font-size: 0.9rem;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+  .epg-picker-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.6);
+    display: grid;
+    place-items: center;
+  }
+  .epg-picker {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 24px 20px;
+    width: min(320px, 90vw);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  }
+  .epg-picker-title {
+    font-weight: 640;
+    font-size: 1rem;
+    text-align: center;
+  }
+  .epg-picker-sub {
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .epg-picker-btn {
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 560;
+    cursor: pointer;
+    text-align: left;
+  }
+  .epg-picker-btn:active {
+    background: var(--panel-3);
+  }
+  .epg-picker-cancel {
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 0.88rem;
+    cursor: pointer;
+    text-align: center;
+    margin-top: 2px;
   }
 </style>
