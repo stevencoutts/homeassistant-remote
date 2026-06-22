@@ -5,8 +5,11 @@
   import { mediaTurnOn, mediaSelectSource } from '$lib/services';
   import type { Channel, Programme, PlayTarget } from '$lib/emby/types';
 
-  // The room's Apple TV display name, used to target the right Emby session.
+  // The room's Apple TV display name, used as a fallback hint for session matching.
   export let appleTvHint = '';
+  // The Apple TV device IP (from HA device registry configuration_url).
+  // When present this takes priority over name matching for Emby session selection.
+  export let appleTvIp = '';
   // The Apple TV's HA media_player entity, used to wake it and launch Emby when
   // no Emby session exists yet.
   export let appleTvEntity = '';
@@ -42,7 +45,7 @@
 
   onMount(async () => {
     // Resolve the target device for this room in the background.
-    findPlayTarget(appleTvHint)
+    findPlayTarget(appleTvHint, appleTvIp)
       .then((t) => { if (t) target = t; })
       .catch((e) => console.error('Emby session lookup failed', e));
 
@@ -87,8 +90,8 @@
   let waking = false;
 
   async function ensureTarget(): Promise<PlayTarget | null> {
-    // Always fetch a fresh session matched to this room's player by name hint.
-    const fresh = await findPlayTarget(appleTvHint);
+    // Always fetch a fresh session. IP match takes priority over name hint.
+    const fresh = await findPlayTarget(appleTvHint, appleTvIp);
     if (fresh) { target = fresh; return fresh; }
 
     // No matching session — try to wake the device.
@@ -100,7 +103,7 @@
     try {
       for (let i = 0; i < 12; i++) {
         await delay(1500);
-        const t = await findPlayTarget(appleTvHint);
+        const t = await findPlayTarget(appleTvHint, appleTvIp);
         if (t) { target = t; return t; }
       }
       return null;

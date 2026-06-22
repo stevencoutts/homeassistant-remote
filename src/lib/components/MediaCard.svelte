@@ -240,6 +240,7 @@
   <EpgGuide
     appleTvHint={appleTv?.name ?? ''}
     appleTvEntity={appleTv?.entity ?? ''}
+    appleTvIp={appleTv?.ip ?? ''}
     {embySource}
     onClose={() => (showGuide = false)}
   />

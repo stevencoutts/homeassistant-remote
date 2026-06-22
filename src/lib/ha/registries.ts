@@ -14,6 +14,9 @@ export interface FloorEntry {
 export interface DeviceEntry {
   id: string;
   area_id: string | null;
+  // The Apple TV (and other) integrations set this to "http://<host>" which lets
+  // us extract the device IP for reliable Emby session matching.
+  configuration_url?: string | null;
 }
 
 export interface EntityEntry {

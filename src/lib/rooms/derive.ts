@@ -12,8 +12,20 @@ const NO_FLOOR = Number.MAX_SAFE_INTEGER;
 
 export { mapAreaIcon };
 
+// Extract host IP from a configuration_url such as "http://192.168.1.42".
+function deviceIp(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try { return new URL(url).hostname || undefined; } catch { return undefined; }
+}
+
 export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
   const deviceArea = new Map(reg.devices.map((d) => [d.id, d.area_id]));
+  // device id → IP (from configuration_url); used to match Apple TV to Emby session
+  const deviceIpMap = new Map<string, string>();
+  for (const d of reg.devices) {
+    const ip = deviceIp(d.configuration_url);
+    if (ip) deviceIpMap.set(d.id, ip);
+  }
   const floorLevel = new Map(reg.floors.map((f) => [f.floor_id, f.level ?? NO_FLOOR]));
 
   const areaOf = (e: EntityEntry): string | null =>
@@ -122,7 +134,12 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       if (!cur || mediaScore(e) > mediaScore(cur)) mediaEnts.set(key, e);
     }
     const allMedia = [...mediaEnts.values()]
-      .map((e) => ({ name: displayName(e), entity: e.entity_id }))
+      .map((e) => {
+        const ip = e.device_id ? deviceIpMap.get(e.device_id) : undefined;
+        return ip
+          ? { name: displayName(e), entity: e.entity_id, ip }
+          : { name: displayName(e), entity: e.entity_id };
+      })
       .sort(byName);
     // Sonos exposes a room-level group player alongside individual speakers.
     // Drop it if it matches the area name (e.g. "Living Room") but only when

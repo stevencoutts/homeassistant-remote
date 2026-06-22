@@ -5,6 +5,9 @@
 export interface NamedEntity {
   name: string;
   entity: string;
+  // Device IP, populated for TV media players so the Emby guide can match by
+  // RemoteEndPoint rather than guessing from the device name.
+  ip?: string;
 }
 
 export interface Room {

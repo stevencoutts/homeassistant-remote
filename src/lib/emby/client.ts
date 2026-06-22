@@ -65,7 +65,8 @@ interface EmbySession {
   Id: string;
   Client?: string;
   DeviceName?: string;
-  LastActivityDate?: string; // ISO-8601; used as tiebreaker when hint scores are equal
+  LastActivityDate?: string;   // ISO-8601; used as tiebreaker when hint scores are equal
+  RemoteEndPoint?: string;     // "192.168.1.x:port" — used for exact IP matching
 }
 
 // Clients that represent a TV/streaming device capable of playing Live TV.
@@ -100,16 +101,31 @@ function hintScore(s: EmbySession, hint: string): number {
 // Find the best Emby session to play Live TV to. When a hint is supplied
 // (the HA friendly name of the room's player) we prefer a session whose
 // DeviceName best matches it; otherwise the first video-client session is used.
-export function matchAppleTvSession(sessions: EmbySession[], hint?: string): PlayTarget | null {
+// ip: the known IP of the HA device (from configuration_url).
+// Strips any port from RemoteEndPoint ("192.168.1.x:52000" → "192.168.1.x").
+function sessionIp(s: EmbySession): string {
+  return (s.RemoteEndPoint ?? '').split(':')[0];
+}
+
+export function matchAppleTvSession(
+  sessions: EmbySession[],
+  hint?: string,
+  ip?: string
+): PlayTarget | null {
   const candidates = sessions.filter(isVideoClient);
   if (!candidates.length) return null;
+
+  // Exact IP match — most reliable signal; short-circuits name matching entirely.
+  if (ip) {
+    const byIp = candidates.find((s) => sessionIp(s) === ip);
+    if (byIp) return { sessionId: byIp.Id, name: byIp.DeviceName ?? byIp.Client ?? 'TV' };
+  }
+
+  // Fall back to name-based hint scoring.
   if (hint) {
     const scored = candidates
       .map((s) => ({ s, score: hintScore(s, hint) }))
       .filter((x) => x.score > 0)
-      // Primary sort: hint score descending.
-      // Tiebreaker: most recent activity first — the active room's device will
-      // have a newer LastActivityDate than an idle one.
       .sort((a, b) =>
         b.score - a.score ||
         Date.parse(b.s.LastActivityDate ?? '0') - Date.parse(a.s.LastActivityDate ?? '0')
@@ -119,12 +135,12 @@ export function matchAppleTvSession(sessions: EmbySession[], hint?: string): Pla
       return { sessionId: best.Id, name: best.DeviceName ?? best.Client ?? 'TV' };
     }
   }
-  // No hint or no scored matches — prefer the most recently active session.
+
+  // Last resort — most recently active session.
   const byActivity = [...candidates].sort(
     (a, b) => Date.parse(b.LastActivityDate ?? '0') - Date.parse(a.LastActivityDate ?? '0')
   );
-  const first = byActivity[0];
-  return { sessionId: first.Id, name: first.DeviceName ?? first.Client ?? 'TV' };
+  return { sessionId: byActivity[0].Id, name: byActivity[0].DeviceName ?? byActivity[0].Client ?? 'TV' };
 }
 
 // Place a programme block in the grid track. Programmes that begin before the
@@ -238,10 +254,10 @@ export async function getGuide(
   return (data.Items ?? []).map(mapProgramme);
 }
 
-export async function findPlayTarget(hint?: string): Promise<PlayTarget | null> {
+export async function findPlayTarget(hint?: string, ip?: string): Promise<PlayTarget | null> {
   if (!(await enabled())) return { sessionId: 'mock', name: hint ?? 'TV' };
   const sessions = await embyGet<EmbySession[]>('/Sessions');
-  return matchAppleTvSession(sessions, hint);
+  return matchAppleTvSession(sessions, hint, ip);
 }
 
 // Return all active video-client sessions so the UI can let the user pick.
