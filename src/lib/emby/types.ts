@@ -20,4 +20,7 @@ export interface Programme {
 export interface PlayTarget {
   sessionId: string;
   name: string;
+  // Emby's stable per-client UUID — survives app restarts unlike sessionId.
+  // Stored in localStorage so we never have to guess which session is which again.
+  deviceId?: string;
 }

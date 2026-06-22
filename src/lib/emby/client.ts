@@ -63,10 +63,12 @@ export function pickUser(users: EmbyUser[]): string | null {
 
 interface EmbySession {
   Id: string;
+  DeviceId?: string;                    // stable UUID per Emby client install
   Client?: string;
   DeviceName?: string;
-  LastActivityDate?: string;   // ISO-8601; used as tiebreaker when hint scores are equal
-  RemoteEndPoint?: string;     // "192.168.1.x:port" — used for exact IP matching
+  LastActivityDate?: string;            // ISO-8601
+  RemoteEndPoint?: string;              // "192.168.1.x:port"
+  NowPlayingItem?: { Name?: string };   // set only when actively playing
 }
 
 // Clients that represent a TV/streaming device capable of playing Live TV.
@@ -101,27 +103,47 @@ function hintScore(s: EmbySession, hint: string): number {
 // Find the best Emby session to play Live TV to. When a hint is supplied
 // (the HA friendly name of the room's player) we prefer a session whose
 // DeviceName best matches it; otherwise the first video-client session is used.
-// ip: the known IP of the HA device (from configuration_url).
-// Strips any port from RemoteEndPoint ("192.168.1.x:52000" → "192.168.1.x").
 function sessionIp(s: EmbySession): string {
+  // RemoteEndPoint is "192.168.1.x:port" — strip the port.
   return (s.RemoteEndPoint ?? '').split(':')[0];
 }
 
+function toTarget(s: EmbySession): PlayTarget {
+  return { sessionId: s.Id, name: s.DeviceName ?? s.Client ?? 'TV', deviceId: s.DeviceId };
+}
+
+// Match priority (highest → lowest):
+//   1. DeviceId  — Emby's stable per-install UUID; guaranteed unique; stored after first play
+//   2. IP        — exact RemoteEndPoint match when HA provides configuration_url
+//   3. NowPlaying — HA reports the title playing via Emby; match to session's NowPlayingItem
+//   4. Hint score — word-overlap between HA friendly name and Emby DeviceName
+//   5. Activity   — most recently active session as last resort
 export function matchAppleTvSession(
   sessions: EmbySession[],
   hint?: string,
-  ip?: string
+  ip?: string,
+  storedDeviceId?: string,
+  nowPlayingTitle?: string
 ): PlayTarget | null {
   const candidates = sessions.filter(isVideoClient);
   if (!candidates.length) return null;
 
-  // Exact IP match — most reliable signal; short-circuits name matching entirely.
-  if (ip) {
-    const byIp = candidates.find((s) => sessionIp(s) === ip);
-    if (byIp) return { sessionId: byIp.Id, name: byIp.DeviceName ?? byIp.Client ?? 'TV' };
+  if (storedDeviceId) {
+    const m = candidates.find((s) => s.DeviceId === storedDeviceId);
+    if (m) return toTarget(m);
   }
 
-  // Fall back to name-based hint scoring.
+  if (ip) {
+    const m = candidates.find((s) => sessionIp(s) === ip);
+    if (m) return toTarget(m);
+  }
+
+  if (nowPlayingTitle) {
+    const title = nowPlayingTitle.toLowerCase();
+    const m = candidates.find((s) => (s.NowPlayingItem?.Name ?? '').toLowerCase() === title);
+    if (m) return toTarget(m);
+  }
+
   if (hint) {
     const scored = candidates
       .map((s) => ({ s, score: hintScore(s, hint) }))
@@ -130,17 +152,13 @@ export function matchAppleTvSession(
         b.score - a.score ||
         Date.parse(b.s.LastActivityDate ?? '0') - Date.parse(a.s.LastActivityDate ?? '0')
       );
-    if (scored.length) {
-      const best = scored[0].s;
-      return { sessionId: best.Id, name: best.DeviceName ?? best.Client ?? 'TV' };
-    }
+    if (scored.length) return toTarget(scored[0].s);
   }
 
-  // Last resort — most recently active session.
   const byActivity = [...candidates].sort(
     (a, b) => Date.parse(b.LastActivityDate ?? '0') - Date.parse(a.LastActivityDate ?? '0')
   );
-  return { sessionId: byActivity[0].Id, name: byActivity[0].DeviceName ?? byActivity[0].Client ?? 'TV' };
+  return toTarget(byActivity[0]);
 }
 
 // Place a programme block in the grid track. Programmes that begin before the
@@ -254,10 +272,15 @@ export async function getGuide(
   return (data.Items ?? []).map(mapProgramme);
 }
 
-export async function findPlayTarget(hint?: string, ip?: string): Promise<PlayTarget | null> {
-  if (!(await enabled())) return { sessionId: 'mock', name: hint ?? 'TV' };
+export async function findPlayTarget(
+  hint?: string,
+  ip?: string,
+  storedDeviceId?: string,
+  nowPlayingTitle?: string
+): Promise<PlayTarget | null> {
+  if (!(await enabled())) return { sessionId: 'mock', name: hint ?? 'TV', deviceId: 'mock' };
   const sessions = await embyGet<EmbySession[]>('/Sessions');
-  return matchAppleTvSession(sessions, hint, ip);
+  return matchAppleTvSession(sessions, hint, ip, storedDeviceId, nowPlayingTitle);
 }
 
 // Return all active video-client sessions so the UI can let the user pick.

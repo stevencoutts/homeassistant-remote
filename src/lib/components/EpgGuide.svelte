@@ -1,21 +1,48 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { icons } from '$lib/icons';
+  import { entities } from '$lib/stores';
   import { getChannels, getGuide, findPlayTarget, playChannel } from '$lib/emby/client';
   import { mediaTurnOn, mediaSelectSource } from '$lib/services';
   import type { Channel, Programme, PlayTarget } from '$lib/emby/types';
 
-  // The room's Apple TV display name, used as a fallback hint for session matching.
+  // The room's Apple TV display name — hint for session matching when other signals fail.
   export let appleTvHint = '';
-  // The Apple TV device IP (from HA device registry configuration_url).
-  // When present this takes priority over name matching for Emby session selection.
+  // Device IP from HA device registry configuration_url — used when present.
   export let appleTvIp = '';
-  // The Apple TV's HA media_player entity, used to wake it and launch Emby when
-  // no Emby session exists yet.
+  // The Apple TV's HA entity_id — used to wake the device AND as the localStorage key.
   export let appleTvEntity = '';
   // The Emby app's name in the Apple TV source list (for select_source).
   export let embySource = 'Emby';
   export let onClose: () => void = () => {};
+
+  // --- Stable device binding (keyed by HA entity_id, not friendly name) ---
+  // Stores Emby's DeviceId (stable UUID per client install) so we never have to
+  // guess which session belongs to this room after the first successful play.
+  const bindingKey = `emby_binding:${appleTvEntity}`;
+
+  function loadDeviceId(): string | undefined {
+    try {
+      const raw = localStorage.getItem(bindingKey);
+      return raw ? (JSON.parse(raw) as { deviceId: string }).deviceId : undefined;
+    } catch { return undefined; }
+  }
+  function saveDeviceId(t: PlayTarget) {
+    if (!t.deviceId) return;
+    try { localStorage.setItem(bindingKey, JSON.stringify({ deviceId: t.deviceId })); }
+    catch {}
+  }
+
+  // If the Apple TV is currently playing something via Emby, use the title to
+  // match the Emby session precisely — more reliable than name guessing.
+  $: nowPlayingTitle = (() => {
+    if (!appleTvEntity) return undefined;
+    const e = $entities[appleTvEntity];
+    if (!e || e.state !== 'playing') return undefined;
+    const src = String(e.attributes.source ?? '').toLowerCase();
+    if (!src.includes('emby')) return undefined;
+    return e.attributes.media_title as string | undefined;
+  })();
 
   const HALF = 30 * 60_000;
   const PX_PER_MIN = 5;
@@ -44,9 +71,10 @@
   let toastTimer: ReturnType<typeof setTimeout>;
 
   onMount(async () => {
-    // Resolve the target device for this room in the background.
-    findPlayTarget(appleTvHint, appleTvIp)
-      .then((t) => { if (t) target = t; })
+    // Resolve the target device using all available signals.
+    const storedDeviceId = loadDeviceId();
+    findPlayTarget(appleTvHint, appleTvIp, storedDeviceId, nowPlayingTitle)
+      .then((t) => { if (t) { target = t; saveDeviceId(t); } })
       .catch((e) => console.error('Emby session lookup failed', e));
 
     try {
@@ -90,11 +118,11 @@
   let waking = false;
 
   async function ensureTarget(): Promise<PlayTarget | null> {
-    // Always fetch a fresh session. IP match takes priority over name hint.
-    const fresh = await findPlayTarget(appleTvHint, appleTvIp);
-    if (fresh) { target = fresh; return fresh; }
+    const storedDeviceId = loadDeviceId();
+    const fresh = await findPlayTarget(appleTvHint, appleTvIp, storedDeviceId, nowPlayingTitle);
+    if (fresh) { target = fresh; saveDeviceId(fresh); return fresh; }
 
-    // No matching session — try to wake the device.
+    // No sessions at all — try to wake the device.
     if (!appleTvEntity) return null;
     waking = true;
     flash('Starting Emby on the device…');
@@ -103,8 +131,8 @@
     try {
       for (let i = 0; i < 12; i++) {
         await delay(1500);
-        const t = await findPlayTarget(appleTvHint, appleTvIp);
-        if (t) { target = t; return t; }
+        const t = await findPlayTarget(appleTvHint, appleTvIp, storedDeviceId, nowPlayingTitle);
+        if (t) { target = t; saveDeviceId(t); return t; }
       }
       return null;
     } finally {
