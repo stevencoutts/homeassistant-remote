@@ -65,6 +65,7 @@ interface EmbySession {
   Id: string;
   Client?: string;
   DeviceName?: string;
+  LastActivityDate?: string; // ISO-8601; used as tiebreaker when hint scores are equal
 }
 
 // Clients that represent a TV/streaming device capable of playing Live TV.
@@ -106,13 +107,23 @@ export function matchAppleTvSession(sessions: EmbySession[], hint?: string): Pla
     const scored = candidates
       .map((s) => ({ s, score: hintScore(s, hint) }))
       .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score);
+      // Primary sort: hint score descending.
+      // Tiebreaker: most recent activity first — the active room's device will
+      // have a newer LastActivityDate than an idle one.
+      .sort((a, b) =>
+        b.score - a.score ||
+        Date.parse(b.s.LastActivityDate ?? '0') - Date.parse(a.s.LastActivityDate ?? '0')
+      );
     if (scored.length) {
       const best = scored[0].s;
       return { sessionId: best.Id, name: best.DeviceName ?? best.Client ?? 'TV' };
     }
   }
-  const first = candidates[0];
+  // No hint or no scored matches — prefer the most recently active session.
+  const byActivity = [...candidates].sort(
+    (a, b) => Date.parse(b.LastActivityDate ?? '0') - Date.parse(a.LastActivityDate ?? '0')
+  );
+  const first = byActivity[0];
   return { sessionId: first.Id, name: first.DeviceName ?? first.Client ?? 'TV' };
 }
 

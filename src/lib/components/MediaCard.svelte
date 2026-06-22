@@ -35,6 +35,17 @@
   })();
   let showGuide = false;
 
+  // Close the guide whenever the room changes (players come from a different room).
+  // MediaCard is not keyed so the same instance receives new props on room switch;
+  // without this, showGuide would stay true and the guide would linger with a
+  // stale/incorrect appleTvHint for a brief period.
+  let _prevPlayersKey = '';
+  $: {
+    const key = players.map((p) => p.entity).join(',');
+    if (_prevPlayersKey !== '' && key !== _prevPlayersKey) showGuide = false;
+    _prevPlayersKey = key;
+  }
+
   let selectedIdx = 0;
   let userPicked = false;
 
