@@ -67,23 +67,32 @@ interface EmbySession {
   DeviceName?: string;
 }
 
-const isAppleTv = (s: EmbySession) => /apple\s*tv|appletv/i.test(`${s.Client ?? ''} ${s.DeviceName ?? ''}`);
+// Clients that represent a TV/streaming device capable of playing Live TV.
+// Apple TV reports Client="Emby for Apple TV", DeviceName="<room> Apple TV".
+// Google TV / Chromecast report Client="Android TV" or "Chromecast".
+// Fire TV reports Client="Emby for Fire TV" or "Amazon Fire TV".
+// Roku reports Client="Emby for Roku".
+const VIDEO_CLIENT_RE = /apple\s*tv|appletv|android\s*tv|google\s*tv|chromecast|fire\s*tv|amazon\s*fire|roku|shield/i;
+const isVideoClient = (s: EmbySession) =>
+  VIDEO_CLIENT_RE.test(`${s.Client ?? ''} ${s.DeviceName ?? ''}`);
 
-// Find the Apple TV Emby session to play to. With a hint (e.g. the room's Apple
-// TV name) prefer a session whose device name overlaps it; else the first
-// Apple TV session that is present.
+// Find the best Emby session to play Live TV to. When a hint is supplied
+// (the HA friendly name of the room's player) we prefer a session whose
+// DeviceName overlaps it so the right room's device wins; otherwise the
+// first available video-client session is used.
 export function matchAppleTvSession(sessions: EmbySession[], hint?: string): PlayTarget | null {
-  const atv = sessions.filter(isAppleTv);
-  if (!atv.length) return null;
+  const candidates = sessions.filter(isVideoClient);
+  if (!candidates.length) return null;
   if (hint) {
     const h = hint.toLowerCase();
-    const byHint = atv.find((s) => {
+    const byHint = candidates.find((s) => {
       const d = (s.DeviceName ?? '').toLowerCase();
       return d && (d.includes(h) || h.includes(d));
     });
-    if (byHint) return { sessionId: byHint.Id, name: byHint.DeviceName ?? 'Apple TV' };
+    if (byHint) return { sessionId: byHint.Id, name: byHint.DeviceName ?? byHint.Client ?? 'TV' };
   }
-  return { sessionId: atv[0].Id, name: atv[0].DeviceName ?? 'Apple TV' };
+  const first = candidates[0];
+  return { sessionId: first.Id, name: first.DeviceName ?? first.Client ?? 'TV' };
 }
 
 // Place a programme block in the grid track. Programmes that begin before the
@@ -198,7 +207,7 @@ export async function getGuide(
 }
 
 export async function findPlayTarget(hint?: string): Promise<PlayTarget | null> {
-  if (!(await enabled())) return { sessionId: 'mock', name: hint ?? 'Apple TV' };
+  if (!(await enabled())) return { sessionId: 'mock', name: hint ?? 'TV' };
   const sessions = await embyGet<EmbySession[]>('/Sessions');
   return matchAppleTvSession(sessions, hint);
 }
