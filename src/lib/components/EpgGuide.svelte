@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { icons } from '$lib/icons';
   import { entities } from '$lib/stores';
-  import { getChannels, getGuide, findPlayTarget, playChannel } from '$lib/emby/client';
+  import { getChannels, getGuide, findPlayTarget, listPlayTargets, playChannel } from '$lib/emby/client';
   import { mediaTurnOn, mediaSelectSource } from '$lib/services';
   import type { Channel, Programme, PlayTarget } from '$lib/emby/types';
 
@@ -118,9 +118,19 @@
   let waking = false;
 
   async function ensureTarget(): Promise<PlayTarget | null> {
-    const storedDeviceId = loadDeviceId();
+    let storedDeviceId = loadDeviceId();
+    // Validate the stored binding is still alive — if the DeviceId no longer
+    // appears in the current session list, it was stale (e.g. from a wrong
+    // first-use guess in a previous deploy). Clear it so we re-learn.
+    if (storedDeviceId) {
+      const live = await listPlayTargets();
+      if (!live.some((s) => s.deviceId === storedDeviceId)) {
+        try { localStorage.removeItem(bindingKey); } catch {}
+        storedDeviceId = undefined;
+      }
+    }
     const fresh = await findPlayTarget(appleTvHint, appleTvIp, storedDeviceId, nowPlayingTitle);
-    if (fresh) { target = fresh; saveDeviceId(fresh); return fresh; }
+    if (fresh) { target = fresh; return fresh; }
 
     // No sessions at all — try to wake the device.
     if (!appleTvEntity) return null;
@@ -150,11 +160,71 @@
   }
 
   async function doPlay(t: PlayTarget, p: Programme) {
+    const alreadyBound = !!loadDeviceId();
+
+    // Snapshot the HA entity state before we send the command so we can detect
+    // whether the correct TV changed afterwards.
+    const snapBefore = $entities[appleTvEntity];
+    const stateBefore  = snapBefore?.state ?? '';
+    const sourceBefore = String(snapBefore?.attributes.source ?? '').toLowerCase();
+    const titleBefore  = String(snapBefore?.attributes.media_title ?? '').toLowerCase();
+
     try {
       await playChannel(t.sessionId, p.channelId);
-      flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
+      flash(`Playing ${channelName(p.channelId)} on ${t.name}…`);
     } catch (err) {
       flash(`Could not start playback${err instanceof Error ? ': ' + err.message : ''}.`);
+      return;
+    }
+
+    if (alreadyBound) {
+      // Binding already confirmed — just refresh the session ID in storage.
+      saveDeviceId(t);
+      return;
+    }
+
+    // First use: we don't know for certain which session is which.
+    // Poll the HA entity for up to 8 s to see if it changed to playing via Emby.
+    let correct = false;
+    for (let i = 0; i < 4; i++) {
+      await delay(2000);
+      const snap = $entities[appleTvEntity];
+      const stateNow  = snap?.state ?? '';
+      const sourceNow = String(snap?.attributes.source ?? '').toLowerCase();
+      const titleNow  = String(snap?.attributes.media_title ?? '').toLowerCase();
+
+      // The entity started playing via Emby AND something about it changed → correct TV.
+      if (
+        stateNow === 'playing' &&
+        sourceNow.includes('emby') &&
+        (stateBefore !== 'playing' || sourceBefore !== sourceNow || titleBefore !== titleNow)
+      ) {
+        correct = true;
+        break;
+      }
+    }
+
+    if (correct) {
+      saveDeviceId(t);
+      flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
+      return;
+    }
+
+    // The correct room's TV didn't change — we sent to the wrong session.
+    // Find the other video session and replay there.
+    try {
+      const all = await listPlayTargets();
+      const other = all.find((s) => s.deviceId && s.deviceId !== t.deviceId);
+      if (!other) {
+        flash(`Playing ${channelName(p.channelId)}`);
+        return;
+      }
+      await playChannel(other.sessionId, p.channelId);
+      target = other;
+      saveDeviceId(other);
+      flash(`Playing ${channelName(p.channelId)} on ${other.name}`);
+    } catch (err) {
+      flash(`Playing ${channelName(p.channelId)}`);
     }
   }
   function flash(msg: string) {
