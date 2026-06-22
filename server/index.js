@@ -29,6 +29,10 @@ const server = createServer((req, res) => {
   // added server-side. Forwards method, query and body (POST for play commands).
   if (embyEnabled && req.url?.startsWith('/emby/')) {
     const target = new URL(req.url.slice('/emby'.length), EMBY_URL);
+    // Pass the key as both the header and the api_key query param. The query
+    // form survives a reverse proxy that strips custom headers (a common cause
+    // of 401s from the X-Emby-Token header alone).
+    if (!target.searchParams.has('api_key')) target.searchParams.set('api_key', EMBY_API_KEY);
     const lib = target.protocol === 'https:' ? httpsRequest : httpRequest;
     const upstream = lib(
       target,
