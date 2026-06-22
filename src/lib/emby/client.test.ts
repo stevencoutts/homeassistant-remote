@@ -59,12 +59,60 @@ describe('matchAppleTvSession', () => {
     expect(matchAppleTvSession([{ Id: 'x', Client: 'Web' }])).toBeNull();
   });
 
-  it('picks the first Apple TV session without a hint', () => {
-    expect(matchAppleTvSession(sessions)?.sessionId).toBe('s2');
+  it('uses the only video session when there is just one candidate', () => {
+    const one = [{ Id: 's2', Client: 'Emby for Apple TV', DeviceName: 'Living Room' }];
+    expect(matchAppleTvSession(one)?.sessionId).toBe('s2');
+  });
+
+  it('refuses to guess between several candidates with no distinguishing signal', () => {
+    // No hint, IP, binding or now-playing — must NOT fall back to one at random,
+    // so the caller can wake this room's own device instead of hijacking another.
+    expect(matchAppleTvSession(sessions)).toBeNull();
   });
 
   it('prefers the Apple TV whose device name matches the hint', () => {
     expect(matchAppleTvSession(sessions, 'Office')?.sessionId).toBe('s3');
+    expect(matchAppleTvSession(sessions, 'Living Room')?.sessionId).toBe('s2');
+  });
+
+  it('returns null when the hint ties across two rooms (generic name)', () => {
+    const twoApple = [
+      { Id: 'a', Client: 'Emby for Apple TV', DeviceName: 'Living Room Apple TV', LastActivityDate: '2026-06-22T10:00:00Z' },
+      { Id: 'b', Client: 'Emby for Apple TV', DeviceName: 'Conservatory Apple TV', LastActivityDate: '2026-06-22T11:00:00Z' }
+    ];
+    // 'Apple TV' overlaps both equally — recency must not break the tie.
+    expect(matchAppleTvSession(twoApple, 'Apple TV')).toBeNull();
+    // But a room-specific hint still resolves cleanly.
+    expect(matchAppleTvSession(twoApple, 'Living Room Apple TV')?.sessionId).toBe('a');
+  });
+
+  it('matches on exact IP before falling back to the hint', () => {
+    const withIp = [
+      { Id: 'a', Client: 'Emby for Apple TV', DeviceName: 'Living Room', RemoteEndPoint: '192.168.1.10:55' },
+      { Id: 'b', Client: 'Emby for Apple TV', DeviceName: 'Conservatory', RemoteEndPoint: '192.168.1.20:55' }
+    ];
+    expect(matchAppleTvSession(withIp, 'Conservatory', '192.168.1.10')?.sessionId).toBe('a');
+  });
+
+  it('lets a confident hint override a stale stored binding', () => {
+    const twoApple = [
+      { Id: 'a', DeviceId: 'dev-living', Client: 'Emby for Apple TV', DeviceName: 'Living Room Apple TV' },
+      { Id: 'b', DeviceId: 'dev-cons', Client: 'Emby for Apple TV', DeviceName: 'Conservatory Apple TV' }
+    ];
+    // Binding wrongly points at the Conservatory, but the name says Living Room.
+    expect(
+      matchAppleTvSession(twoApple, 'Living Room Apple TV', undefined, 'dev-cons')?.sessionId
+    ).toBe('a');
+  });
+
+  it('keeps the stored binding when no confident hint disagrees', () => {
+    const twoApple = [
+      { Id: 'a', DeviceId: 'dev-living', Client: 'Emby for Apple TV', DeviceName: 'Living Room Apple TV' },
+      { Id: 'b', DeviceId: 'dev-cons', Client: 'Emby for Apple TV', DeviceName: 'Conservatory Apple TV' }
+    ];
+    expect(
+      matchAppleTvSession(twoApple, 'Apple TV', undefined, 'dev-cons')?.sessionId
+    ).toBe('b');
   });
 });
 

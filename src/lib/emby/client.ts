@@ -112,12 +112,44 @@ function toTarget(s: EmbySession): PlayTarget {
   return { sessionId: s.Id, name: s.DeviceName ?? s.Client ?? 'TV', deviceId: s.DeviceId };
 }
 
+// Pick the best hint match and say whether it is *confident*. A match is
+// confident when it is an exact substring match (score 100) or a strict, unique
+// word-overlap winner (top score beats the runner-up). A tie — e.g. two Apple
+// TVs that share the word "apple" against a generic HA name — is NOT confident,
+// because choosing between them by recency is exactly what sent the Living Room
+// guide to the Conservatory.
+function bestHintMatch(
+  candidates: EmbySession[],
+  hint: string
+): { session: EmbySession; score: number; confident: boolean } | null {
+  const scored = candidates
+    .map((s) => ({ s, score: hintScore(s, hint) }))
+    .filter((x) => x.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        Date.parse(b.s.LastActivityDate ?? '0') - Date.parse(a.s.LastActivityDate ?? '0')
+    );
+  const top = scored[0];
+  if (!top) return null;
+  const second = scored[1];
+  // Confident only when there is a single unique winner. Two sessions that both
+  // contain the hit term (e.g. both ".../Apple TV") tie and are NOT confident —
+  // breaking that tie by recency is what mis-routed the guide between rooms.
+  const confident = !second || top.score > second.score;
+  return { session: top.s, score: top.score, confident };
+}
+
 // Match priority (highest → lowest):
-//   1. DeviceId  — Emby's stable per-install UUID; guaranteed unique; stored after first play
+//   1. DeviceId  — Emby's stable per-install UUID; stored after first play, but
+//                  ignored if a confident name match points at a different device
+//                  (repairs a binding saved wrong by an earlier build).
 //   2. IP        — exact RemoteEndPoint match when HA provides configuration_url
 //   3. NowPlaying — HA reports the title playing via Emby; match to session's NowPlayingItem
-//   4. Hint score — word-overlap between HA friendly name and Emby DeviceName
-//   5. Activity   — most recently active session as last resort
+//   4. Hint      — confident name match between HA friendly name and Emby DeviceName
+//   5. Single    — one video session only: unambiguous, use it.
+// With several candidates and no confident signal we return null on purpose, so
+// the caller wakes THIS room's device instead of hijacking another room's TV.
 export function matchAppleTvSession(
   sessions: EmbySession[],
   hint?: string,
@@ -128,9 +160,15 @@ export function matchAppleTvSession(
   const candidates = sessions.filter(isVideoClient);
   if (!candidates.length) return null;
 
+  // Resolve the hint up front so it can override a stale stored binding.
+  const hintMatch = hint ? bestHintMatch(candidates, hint) : null;
+
   if (storedDeviceId) {
     const m = candidates.find((s) => s.DeviceId === storedDeviceId);
-    if (m) return toTarget(m);
+    // Trust the binding unless a confident name match disagrees with it.
+    if (m && !(hintMatch?.confident && hintMatch.session.DeviceId !== storedDeviceId)) {
+      return toTarget(m);
+    }
   }
 
   if (ip) {
@@ -144,21 +182,12 @@ export function matchAppleTvSession(
     if (m) return toTarget(m);
   }
 
-  if (hint) {
-    const scored = candidates
-      .map((s) => ({ s, score: hintScore(s, hint) }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) =>
-        b.score - a.score ||
-        Date.parse(b.s.LastActivityDate ?? '0') - Date.parse(a.s.LastActivityDate ?? '0')
-      );
-    if (scored.length) return toTarget(scored[0].s);
-  }
+  if (hintMatch?.confident) return toTarget(hintMatch.session);
 
-  const byActivity = [...candidates].sort(
-    (a, b) => Date.parse(b.LastActivityDate ?? '0') - Date.parse(a.LastActivityDate ?? '0')
-  );
-  return toTarget(byActivity[0]);
+  // No confident signal. A lone candidate is unambiguous; otherwise refuse to
+  // guess — returning null lets the caller wake this room's own Apple TV.
+  if (candidates.length === 1) return toTarget(candidates[0]);
+  return null;
 }
 
 // Place a programme block in the grid track. Programmes that begin before the

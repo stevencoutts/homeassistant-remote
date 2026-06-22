@@ -16,6 +16,19 @@
   export let embySource = 'Emby';
   export let onClose: () => void = () => {};
 
+  // True when we can identify this room's device positively — by a known IP or
+  // by the target's name matching the room's player name. When confident we
+  // never bounce playback to "some other" TV during verification, which is what
+  // used to send the Living Room guide to the Conservatory Apple TV.
+  function confidentTarget(t: PlayTarget | null): boolean {
+    if (!t) return false;
+    if (appleTvIp) return true;
+    if (!appleTvHint) return false;
+    const a = t.name.toLowerCase();
+    const h = appleTvHint.toLowerCase();
+    return a.includes(h) || h.includes(a);
+  }
+
   // --- Stable device binding (keyed by HA entity_id, not friendly name) ---
   // Stores Emby's DeviceId (stable UUID per client install) so we never have to
   // guess which session belongs to this room after the first successful play.
@@ -159,72 +172,90 @@
     await doPlay(t, p);
   }
 
-  async function doPlay(t: PlayTarget, p: Programme) {
-    const alreadyBound = !!loadDeviceId();
+  // Snapshot the key HA entity attributes we use to detect a state change.
+  // Returns null if the entity isn't in the store yet.
+  function entitySnap(): { state: string; source: string; title: string; art: string } | null {
+    const e = $entities[appleTvEntity];
+    if (!e) return null;
+    return {
+      state:  e.state,
+      source: String(e.attributes.source ?? ''),
+      title:  String(e.attributes.media_title ?? ''),
+      art:    String(e.attributes.entity_picture ?? '')
+    };
+  }
 
-    // Snapshot the HA entity state before we send the command so we can detect
-    // whether the correct TV changed afterwards.
-    const snapBefore = $entities[appleTvEntity];
-    const stateBefore  = snapBefore?.state ?? '';
-    const sourceBefore = String(snapBefore?.attributes.source ?? '').toLowerCase();
-    const titleBefore  = String(snapBefore?.attributes.media_title ?? '').toLowerCase();
+  async function doPlay(t: PlayTarget, p: Programme) {
+    // Capture state before so we can detect change after.
+    const before = entitySnap();
 
     try {
       await playChannel(t.sessionId, p.channelId);
-      flash(`Playing ${channelName(p.channelId)} on ${t.name}…`);
+      flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
     } catch (err) {
       flash(`Could not start playback${err instanceof Error ? ': ' + err.message : ''}.`);
       return;
     }
 
-    if (alreadyBound) {
-      // Binding already confirmed — just refresh the session ID in storage.
+    // When the target was positively identified (known IP, or its name matches
+    // this room's player) we trust it: just lock the binding in. We must NOT
+    // bounce to another session, or a slow-to-report Apple TV would send the
+    // Living Room guide to the Conservatory.
+    if (confidentTarget(t)) {
       saveDeviceId(t);
       return;
     }
 
-    // First use: we don't know for certain which session is which.
-    // Poll the HA entity for up to 8 s to see if it changed to playing via Emby.
-    let correct = false;
+    // Otherwise this was a best-effort guess — verify in the background and
+    // self-correct if this room's own TV didn't respond.
+    verifyAndCorrect(t, p, before).catch(() => {});
+  }
+
+  async function verifyAndCorrect(
+    t: PlayTarget,
+    p: Programme,
+    before: ReturnType<typeof entitySnap>
+  ) {
+    if (!before) return; // entity unknown — can't verify
+
+    // Poll up to 8 s for the correct room's TV to update.
+    let changed = false;
     for (let i = 0; i < 4; i++) {
       await delay(2000);
-      const snap = $entities[appleTvEntity];
-      const stateNow  = snap?.state ?? '';
-      const sourceNow = String(snap?.attributes.source ?? '').toLowerCase();
-      const titleNow  = String(snap?.attributes.media_title ?? '').toLowerCase();
-
-      // The entity started playing via Emby AND something about it changed → correct TV.
+      const after = entitySnap();
       if (
-        stateNow === 'playing' &&
-        sourceNow.includes('emby') &&
-        (stateBefore !== 'playing' || sourceBefore !== sourceNow || titleBefore !== titleNow)
+        after &&
+        (after.state !== before.state ||
+         after.source !== before.source ||
+         after.title  !== before.title  ||
+         after.art    !== before.art)
       ) {
-        correct = true;
+        changed = true;
         break;
       }
     }
 
-    if (correct) {
+    if (changed) {
+      // This room's TV changed — we had the right session. Lock it in.
       saveDeviceId(t);
-      flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
       return;
     }
 
-    // The correct room's TV didn't change — we sent to the wrong session.
-    // Find the other video session and replay there.
+    // This room's TV didn't change — we may have played to the wrong device.
+    // Only correct when there is exactly one *other* video session; with
+    // several candidates we cannot tell which is this room's, so guessing again
+    // would just move playback to yet another wrong room.
     try {
       const all = await listPlayTargets();
-      const other = all.find((s) => s.deviceId && s.deviceId !== t.deviceId);
-      if (!other) {
-        flash(`Playing ${channelName(p.channelId)}`);
-        return;
-      }
+      const others = all.filter((s) => s.deviceId && s.deviceId !== t.deviceId);
+      if (others.length !== 1) return;
+      const other = others[0];
       await playChannel(other.sessionId, p.channelId);
       target = other;
       saveDeviceId(other);
       flash(`Playing ${channelName(p.channelId)} on ${other.name}`);
-    } catch (err) {
-      flash(`Playing ${channelName(p.channelId)}`);
+    } catch {
+      // Silent — will retry on next play.
     }
   }
   function flash(msg: string) {
