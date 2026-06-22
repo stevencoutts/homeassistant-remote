@@ -23,7 +23,7 @@
   $: appleTv = players.find((p) =>
     /apple.?tv|google.?tv|chromecast|fire.?tv|android.?tv|shield|roku/i.test(p.entity) ||
     /apple.?tv|google.?tv|chromecast|fire.?tv|android.?tv|shield|roku/i.test(p.name)
-  ) ?? players[0];
+  ) ?? undefined;
   // The Emby app's name as the player lists it, used to launch it via HA.
   $: embySource = (() => {
     const list = appleTv ? $entities[appleTv.entity]?.attributes.source_list : undefined;
