@@ -62,13 +62,14 @@ export async function loadFavourites(entity_id: string): Promise<Favourite[]> {
     const favNode = root.children?.find(
       (c) => /favorit/i.test(c.title) || /favorit/i.test(c.media_content_type)
     );
-    const node = favNode
-      ? await browse(entity_id, favNode.media_content_id, favNode.media_content_type)
-      : root;
-    const favs = await collectPlayable(entity_id, node, 2);
-    // ponytail: temporary — remove once favourites are confirmed showing.
-    console.log('[favourites] collected:', favs.map((f) => f.title));
-    return favs;
+    // Only treat a player as a favourites source if it actually exposes a
+    // "Favorites" node (Sonos does). Without this guard, browsable players that
+    // have no favourites — a Google/Android TV, a Chromecast — would return
+    // their root apps/inputs here and masquerade as favourites, hijacking the
+    // presets away from the room's Sonos.
+    if (!favNode) return [];
+    const node = await browse(entity_id, favNode.media_content_id, favNode.media_content_type);
+    return await collectPlayable(entity_id, node, 2);
   } catch (err) {
     console.error('Failed to load Sonos favourites', err);
     return [];
