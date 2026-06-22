@@ -6,6 +6,7 @@
   import Settings from '$lib/components/Settings.svelte';
   import { icons } from '$lib/icons';
   import { entities, currentRoomId, rooms, visibleRooms, status } from '$lib/stores';
+  import { battery } from '$lib/device/battery';
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
   import ClimateCard from '$lib/components/ClimateCard.svelte';
@@ -61,6 +62,19 @@
 
   $: room = $rooms.find((r) => r.id === $currentRoomId) ?? null;
 
+  // Logo: prefer a bundled static/couttsnet-logo.png (works offline on a
+  // VLAN-locked kiosk); fall back to the hosted copy; hide if neither loads.
+  let triedRemote = false;
+  function logoError(ev: Event) {
+    const img = ev.currentTarget as HTMLImageElement;
+    if (!triedRemote) {
+      triedRemote = true;
+      img.src = 'https://couttsnet.com/couttsnet-logo.png';
+    } else {
+      img.style.display = 'none';
+    }
+  }
+
   $: sub = room ? subtitle() : '';
   function subtitle(): string {
     if (!room) return '';
@@ -83,11 +97,31 @@
 
 <div class="app">
   <header class="topbar">
-    <div class="room-title">
-      <div class="name">{room?.name ?? 'Room Remote'}</div>
-      <div class="sub">{sub}</div>
+    <div class="header-left">
+      <img
+        class="brand-logo"
+        src="/couttsnet-logo.png"
+        alt="couttsnet"
+        onerror={logoError}
+      />
+      <div class="room-title">
+        <div class="name">{room?.name ?? 'Room Remote'}</div>
+        <div class="sub">{sub}</div>
+      </div>
     </div>
     <div class="header-right">
+      {#if $battery.available}
+        <div
+          class="battery"
+          class:low={$battery.level != null && $battery.level <= 20 && !$battery.charging}
+          class:charging={$battery.charging}
+          title="Battery {$battery.level ?? '?'}%{$battery.charging ? ' · charging' : ''}"
+        >
+          <span class="batt-shell"><span class="batt-fill" style="width:{$battery.level ?? 0}%"></span></span>
+          <span class="batt-pct">{$battery.level ?? '–'}%</span>
+          {#if $battery.charging}<span class="batt-bolt" aria-hidden="true">⚡</span>{/if}
+        </div>
+      {/if}
       <div class="clock">
         <div class="time">{clock || '--:--'}</div>
         {#if $status === 'disconnected'}<div class="meta" style="color:var(--red)">Disconnected</div>

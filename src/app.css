@@ -66,10 +66,23 @@ body {
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
 }
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.brand-logo {
+  height: 34px;
+  width: auto;
+  flex: none;
+  display: block;
+}
 .room-title {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 .room-title .name {
   font-size: 1.35rem;
@@ -488,6 +501,51 @@ input[type="range"].blue::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+.battery {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.battery .batt-shell {
+  position: relative;
+  box-sizing: border-box;
+  width: 26px;
+  height: 13px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  padding: 1.5px;
+}
+.battery .batt-shell::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.5px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 0 1px 1px 0;
+}
+.battery .batt-fill {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  transition: width 0.4s ease;
+}
+.battery.low {
+  color: var(--red);
+}
+.battery.charging {
+  color: var(--green);
+}
+.battery .batt-bolt {
+  font-size: 0.8rem;
+  line-height: 1;
 }
 .gear {
   width: 44px;
