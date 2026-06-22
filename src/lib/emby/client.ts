@@ -76,20 +76,41 @@ const VIDEO_CLIENT_RE = /apple\s*tv|appletv|android\s*tv|google\s*tv|chromecast|
 const isVideoClient = (s: EmbySession) =>
   VIDEO_CLIENT_RE.test(`${s.Client ?? ''} ${s.DeviceName ?? ''}`);
 
+// Significant words for hint matching — strip filler so "Living Room Apple TV"
+// matches an Emby session named "Apple TV Living Room" even with word reorder.
+const FILLER = new Set(['the', 'a', 'an', 'room', 'tv', 'and', 'of', 'in', 'my']);
+const sigWords = (s: string) =>
+  s.toLowerCase().split(/\W+/).filter((w) => w.length > 1 && !FILLER.has(w));
+
+// Score how well an Emby session matches a hint (HA friendly name).
+// Tries full substring first, then word-level overlap.
+function hintScore(s: EmbySession, hint: string): number {
+  const combined = `${s.DeviceName ?? ''} ${s.Client ?? ''}`.toLowerCase();
+  const h = hint.toLowerCase();
+  // Exact substring match — strongest signal
+  if (combined.includes(h) || h.includes(combined.trim())) return 100;
+  // Word-level overlap
+  const hw = sigWords(hint);
+  const cw = sigWords(combined);
+  const overlap = hw.filter((w) => cw.includes(w)).length;
+  return overlap;
+}
+
 // Find the best Emby session to play Live TV to. When a hint is supplied
 // (the HA friendly name of the room's player) we prefer a session whose
-// DeviceName overlaps it so the right room's device wins; otherwise the
-// first available video-client session is used.
+// DeviceName best matches it; otherwise the first video-client session is used.
 export function matchAppleTvSession(sessions: EmbySession[], hint?: string): PlayTarget | null {
   const candidates = sessions.filter(isVideoClient);
   if (!candidates.length) return null;
   if (hint) {
-    const h = hint.toLowerCase();
-    const byHint = candidates.find((s) => {
-      const d = (s.DeviceName ?? '').toLowerCase();
-      return d && (d.includes(h) || h.includes(d));
-    });
-    if (byHint) return { sessionId: byHint.Id, name: byHint.DeviceName ?? byHint.Client ?? 'TV' };
+    const scored = candidates
+      .map((s) => ({ s, score: hintScore(s, hint) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score);
+    if (scored.length) {
+      const best = scored[0].s;
+      return { sessionId: best.Id, name: best.DeviceName ?? best.Client ?? 'TV' };
+    }
   }
   const first = candidates[0];
   return { sessionId: first.Id, name: first.DeviceName ?? first.Client ?? 'TV' };
