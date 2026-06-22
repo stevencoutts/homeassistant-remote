@@ -38,12 +38,16 @@
   let selectedIdx = 0;
   let userPicked = false;
 
-  // Until the user picks, prefer a non-Sonos player that has a media_title
-  // (e.g. Apple TV showing "BBC 1") regardless of its exact state — Apple TV
-  // often reports 'on' or 'idle' while Emby is streaming through it, so
-  // requiring state==='playing' would always fall back to the Sonos relay.
+  // Until the user picks, prefer a non-Sonos player that is actively doing
+  // something (playing, paused, on, standby-with-title) — Google TV often
+  // reports 'standby' when the screen dims while content is paused, and 'on'
+  // when a native app is running but hasn't pushed metadata yet.
   $: if (!userPicked) {
+    const ACTIVE = new Set(['playing', 'paused', 'on', 'standby']);
     let i = players.findIndex(
+      (p) => !(/sonos/i.test(p.entity)) && ACTIVE.has($entities[p.entity]?.state ?? '')
+    );
+    if (i < 0) i = players.findIndex(
       (p) => $entities[p.entity]?.attributes.media_title && !/sonos/i.test(p.entity)
     );
     if (i < 0) i = players.findIndex((p) => $entities[p.entity]?.state === 'playing');
@@ -54,7 +58,9 @@
   $: entity = players[selectedIdx]?.entity;
   $: e = entity ? $entities[entity] : undefined;
   $: attrs = e?.attributes ?? {};
-  $: idle = !e || e.state === 'off' || e.state === 'unavailable' || e.state === 'standby';
+  // 'standby' is NOT idle for TV players — Google TV goes to standby when the
+  // screen dims while paused; we still want to show state and enable controls.
+  $: idle = !e || e.state === 'off' || e.state === 'unavailable';
   $: playing = e?.state === 'playing';
   // Volume/mute target the room's actual speaker: prefer a volume-capable Sonos,
   // else any volume-capable player, else the selected one. (VOLUME_SET = bit 4.)
@@ -139,7 +145,7 @@
             userPicked = true;
           }}
         >
-          {$entities[p.entity]?.state === 'playing' ? '● ' : ''}{p.name}
+          {['playing','paused'].includes($entities[p.entity]?.state ?? '') ? '● ' : ''}{p.name}
         </button>
       {/each}
     </div>
@@ -150,8 +156,8 @@
       {attrs.entity_picture ? '' : '🎵'}
     </div>
     <div class="media-meta">
-      <div class="t">{idle ? 'Nothing playing' : attrs.media_title ?? 'Unknown'}</div>
-      <div class="a">{idle ? '' : attrs.media_artist ?? ''}</div>
+      <div class="t">{idle ? 'Nothing playing' : attrs.media_title ?? attrs.app_name ?? (e?.state === 'standby' ? 'Standby' : 'Unknown')}</div>
+      <div class="a">{idle ? '' : attrs.media_artist ?? attrs.media_series_title ?? ''}</div>
       {#if attrs.source}<div class="src">{attrs.source}</div>{/if}
     </div>
   </div>
