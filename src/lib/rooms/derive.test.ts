@@ -60,6 +60,27 @@ describe('deriveRooms', () => {
     expect(room.soundModes?.map((m) => m.name)).toEqual(['Night Sound']);
   });
 
+  it('dedupes same-named media players, keeping the Sonos over a mirror', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'office', name: 'Steven Office', icon: null, floor_id: null }],
+      entities: [
+        ent('media_player.steven_office', {
+          area_id: 'office',
+          original_name: 'Steven Office',
+          platform: 'sonos'
+        }),
+        ent('media_player.steven_office_airplay', {
+          area_id: 'office',
+          original_name: 'Steven Office',
+          platform: 'homekit_controller'
+        })
+      ]
+    };
+    const [room] = deriveRooms(reg, states);
+    expect(room.media?.map((m) => m.entity)).toEqual(['media_player.steven_office']);
+  });
+
   it('collapses a grouped Sonos pair to its coordinator (one media tab)', () => {
     const reg: Registries = {
       ...empty,

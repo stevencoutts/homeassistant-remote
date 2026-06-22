@@ -76,10 +76,33 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       .map((e) => ({ name: displayName(e), entity: e.entity_id }))
       .sort(byName);
     const climate = pick('climate')[0];
+    // A room's speaker is often exposed more than once under the same name
+    // (e.g. the native Sonos entity plus an AirPlay/HomeKit mirror, or a bonded
+    // stereo pair). Dedupe media players by display name, keeping the best
+    // candidate: prefer the real Sonos, then the group coordinator, then
+    // whichever is currently playing.
+    const mediaScore = (e: EntityEntry): number => {
+      const st = states[e.entity_id];
+      let s = 0;
+      if (e.platform === 'sonos') s += 4;
+      const gm = st?.attributes?.group_members;
+      if (Array.isArray(gm) && gm[0] === e.entity_id) s += 2; // coordinator
+      if (st?.state === 'playing') s += 1;
+      return s;
+    };
+    const mediaEnts = new Map<string, EntityEntry>();
+    for (const e of ents) {
+      if (domainOf(e.entity_id) !== 'media_player') continue;
+      const key = displayName(e).toLowerCase();
+      const cur = mediaEnts.get(key);
+      if (!cur || mediaScore(e) > mediaScore(cur)) mediaEnts.set(key, e);
+    }
+    const allMedia = [...mediaEnts.values()]
+      .map((e) => ({ name: displayName(e), entity: e.entity_id }))
+      .sort(byName);
     // Sonos exposes a room-level group player alongside individual speakers.
     // Drop it if it matches the area name (e.g. "Living Room") but only when
     // other players remain — if it's the only/last player, keep it.
-    const allMedia = pick('media_player');
     const areaNameLc = area.name.toLowerCase();
     const mediaWithout = allMedia.filter((p) => p.name.toLowerCase() !== areaNameLc);
     // Only drop the area-named player (Sonos room group) when ≥2 individual
