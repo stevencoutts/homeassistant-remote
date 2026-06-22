@@ -60,6 +60,36 @@ describe('deriveRooms', () => {
     expect(room.soundModes?.map((m) => m.name)).toEqual(['Night Sound']);
   });
 
+  it('collapses a grouped Sonos pair to its coordinator (one media tab)', () => {
+    const reg: Registries = {
+      ...empty,
+      areas: [{ area_id: 'office', name: 'Office', icon: null, floor_id: null }],
+      entities: [
+        ent('media_player.sonos_office_left', { area_id: 'office', original_name: 'Office Left' }),
+        ent('media_player.sonos_office_right', { area_id: 'office', original_name: 'Office Right' })
+      ]
+    };
+    // Both speakers are bonded into one group; the left is the coordinator.
+    const st: EntityMap = {
+      'media_player.sonos_office_left': {
+        entity_id: 'media_player.sonos_office_left',
+        state: 'playing',
+        attributes: {
+          group_members: ['media_player.sonos_office_left', 'media_player.sonos_office_right']
+        }
+      },
+      'media_player.sonos_office_right': {
+        entity_id: 'media_player.sonos_office_right',
+        state: 'playing',
+        attributes: {
+          group_members: ['media_player.sonos_office_left', 'media_player.sonos_office_right']
+        }
+      }
+    };
+    const [room] = deriveRooms(reg, st);
+    expect(room.media?.map((m) => m.entity)).toEqual(['media_player.sonos_office_left']);
+  });
+
   it('keeps the Hue light when the same light is mirrored by SmartThings', () => {
     const reg: Registries = {
       ...empty,

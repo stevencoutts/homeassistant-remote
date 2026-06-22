@@ -85,7 +85,22 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     // Only drop the area-named player (Sonos room group) when ≥2 individual
     // speakers remain — if only 1 is left, the area-named entity IS the real
     // speaker (e.g. a single Sonos in the conservatory named "Conservatory").
-    const media = mediaWithout.length >= 2 ? mediaWithout : allMedia;
+    let media = mediaWithout.length >= 2 ? mediaWithout : allMedia;
+    // Collapse a Sonos stereo pair / group to its coordinator. When several of
+    // the room's speakers are bonded into one Sonos group, HA still exposes
+    // each member, but only the coordinator (group_members[0]) accepts
+    // transport and play_media — sending to a member is rejected. Keep just the
+    // coordinator so the room has a single media tab that actually works.
+    const inRoom = new Set(media.map((p) => p.entity));
+    const coordinatorOf = (id: string): string => {
+      const gm = states[id]?.attributes?.group_members;
+      return Array.isArray(gm) && gm.length ? gm[0] : id;
+    };
+    const collapsed = media.filter((p) => {
+      const coord = coordinatorOf(p.entity);
+      return coord === p.entity || !inRoom.has(coord);
+    });
+    if (collapsed.length) media = collapsed;
     const covers = pick('cover');
     // Sonos (and similar) sound-mode switches, shown on the media card.
     const soundModes = ents

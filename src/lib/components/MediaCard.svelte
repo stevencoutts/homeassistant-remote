@@ -49,6 +49,13 @@
     if (sonosPlayer) return sonosPlayer.entity;
     return (entity && sv(entity) ? entity : players.find((p) => sv(p.entity))?.entity ?? entity);
   })();
+  // Sonos plays only via the group coordinator (group_members[0]); sending
+  // play_media to a grouped member is rejected, so favourites must target it.
+  $: playTarget = (() => {
+    const src = favouritesOwner || volumeEntity || entity;
+    const gm = src ? $entities[src]?.attributes.group_members : undefined;
+    return Array.isArray(gm) && gm.length ? gm[0] : src;
+  })();
   $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
   $: muted = ve?.attributes.is_volume_muted === true;
@@ -158,7 +165,7 @@
         <button
           class="preset"
           title={f.title}
-          on:click={() => playFavourite(volumeEntity, f.contentId, f.contentType)}
+          on:click={() => playFavourite(playTarget, f.contentId, f.contentType)}
         >
           {#if f.thumbnail}<img src={f.thumbnail} alt="" />{/if}
           <span>{f.title}</span>
