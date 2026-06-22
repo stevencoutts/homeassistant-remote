@@ -86,24 +86,26 @@
 
   const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  // Ensure there is an Emby session to play to. If none, wake the Apple TV and
-  // launch Emby via HA, then poll for the session to register.
+  // Ensure there is a live Emby session to play to. Always fetches fresh —
+  // session IDs change when the device sleeps or backgrounds the app, so a
+  // cached ID produces a silent 404. Wake the device via HA if no session found.
   let waking = false;
   async function ensureTarget(): Promise<PlayTarget | null> {
-    if (target) return target;
+    // Try a fresh lookup first — fast path when Emby is already open.
+    const fresh = await findPlayTarget(appleTvHint);
+    if (fresh) { target = fresh; return fresh; }
+
+    // No session: wake the device and wait for Emby to register.
     if (!appleTvEntity) return null;
     waking = true;
-    flash('Starting Emby on the Apple TV…');
+    flash('Starting Emby on the device…');
     mediaTurnOn(appleTvEntity);
     if (embySource) mediaSelectSource(appleTvEntity, embySource);
     try {
       for (let i = 0; i < 12; i++) {
         await delay(1500);
         const t = await findPlayTarget(appleTvHint);
-        if (t) {
-          target = t;
-          return t;
-        }
+        if (t) { target = t; return t; }
       }
       return null;
     } finally {
@@ -114,14 +116,14 @@
   async function play(p: Programme) {
     const t = await ensureTarget();
     if (!t) {
-      flash('Could not reach the Apple TV. Open the Emby app on it and try again.');
+      flash('Could not reach the device. Open Emby on it and try again.');
       return;
     }
     try {
       await playChannel(t.sessionId, p.channelId);
       flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
-    } catch {
-      flash('Could not start playback.');
+    } catch (err) {
+      flash(`Could not start playback${err instanceof Error ? ': ' + err.message : ''}.`);
     }
   }
   function flash(msg: string) {
