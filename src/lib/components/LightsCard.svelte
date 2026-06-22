@@ -2,6 +2,9 @@
   import { entities } from '$lib/stores';
   import { icons } from '$lib/icons';
   import { toggleLight, setLightBrightness, toggleSwitch } from '$lib/services';
+  // Smart plugs registered as light.* need light.toggle, not switch.toggle.
+  const togglePower = (entity: string) =>
+    entity.startsWith('light.') ? toggleLight(entity) : toggleSwitch(entity);
   import type { NamedEntity } from '$lib/types';
 
   // One card holding two independent drill-in groups: lights (with brightness)
@@ -95,7 +98,7 @@
                   role="switch"
                   aria-checked={on}
                   aria-label="Toggle {p.name}"
-                  on:click={() => toggleSwitch(p.entity)}
+                  on:click={() => togglePower(p.entity)}
                 ></button>
               </div>
             </div>

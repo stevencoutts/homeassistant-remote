@@ -58,9 +58,15 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     // Some lights are exposed twice (e.g. native Hue + a SmartThings mirror).
     // Keep one per name, preferring the Hue entity.
     // ponytail: dedupes by name within an area; two real same-named lights collapse — rename them in HA if that bites.
+    // Smart plugs / sockets are sometimes registered as light.* entities by their
+    // integration (e.g. Tuya). Detect them by entity_id containing 'plug' or
+    // 'socket' and redirect to the power array instead of lights.
+    const PLUG_RE = /plug|socket|outlet/i;
     const lightEnts = new Map<string, EntityEntry>();
+    const plugLights: EntityEntry[] = [];
     for (const e of ents) {
       if (domainOf(e.entity_id) !== 'light') continue;
+      if (PLUG_RE.test(e.entity_id)) { plugLights.push(e); continue; }
       const key = displayName(e).toLowerCase();
       const cur = lightEnts.get(key);
       if (!cur || (e.platform === 'hue' && cur.platform !== 'hue')) lightEnts.set(key, e);
@@ -69,12 +75,15 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       .map((e) => ({ name: displayName(e), entity: e.entity_id }))
       .sort(byName);
     const scenes = pick('scene');
-    // Power: user-facing switches (sockets, smart plugs). Sound-mode switches
+    // Power: user-facing switches (sockets, smart plugs) plus any light.*
+    // entities that were identified above as smart plugs. Sound-mode switches
     // are handled separately on the media card and excluded here.
-    const power = ents
-      .filter((e) => domainOf(e.entity_id) === 'switch' && !isSoundModeSwitch(e.entity_id))
-      .map((e) => ({ name: displayName(e), entity: e.entity_id }))
-      .sort(byName);
+    const power = [
+      ...ents
+        .filter((e) => domainOf(e.entity_id) === 'switch' && !isSoundModeSwitch(e.entity_id))
+        .map((e) => ({ name: displayName(e), entity: e.entity_id })),
+      ...plugLights.map((e) => ({ name: displayName(e), entity: e.entity_id }))
+    ].sort(byName);
     const climate = pick('climate')[0];
     // A room's speaker is often exposed more than once under the same name
     // (e.g. the native Sonos entity plus an AirPlay/HomeKit mirror, or a bonded
