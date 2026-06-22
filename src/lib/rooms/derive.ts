@@ -78,10 +78,25 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
     // Power: user-facing switches (sockets, smart plugs) plus any light.*
     // entities that were identified above as smart plugs. Sound-mode switches
     // are handled separately on the media card and excluded here.
+    // Switches whose entity_id or display name contains 'light' are treated as
+    // light controls and go into the lights array instead.
+    const LIGHT_SWITCH_RE = /\blight/i;
+    const switchEnts = ents.filter(
+      (e) => domainOf(e.entity_id) === 'switch' && !isSoundModeSwitch(e.entity_id)
+    );
+    const lightSwitches = switchEnts.filter(
+      (e) => LIGHT_SWITCH_RE.test(e.entity_id) || LIGHT_SWITCH_RE.test(displayName(e))
+    );
+    const powerSwitches = switchEnts.filter(
+      (e) => !LIGHT_SWITCH_RE.test(e.entity_id) && !LIGHT_SWITCH_RE.test(displayName(e))
+    );
+    // Merge light switches into the lights list (they have no brightness — handled in the card).
+    const allLights = [
+      ...lights,
+      ...lightSwitches.map((e) => ({ name: displayName(e), entity: e.entity_id }))
+    ].sort(byName);
     const power = [
-      ...ents
-        .filter((e) => domainOf(e.entity_id) === 'switch' && !isSoundModeSwitch(e.entity_id))
-        .map((e) => ({ name: displayName(e), entity: e.entity_id })),
+      ...powerSwitches.map((e) => ({ name: displayName(e), entity: e.entity_id })),
       ...plugLights.map((e) => ({ name: displayName(e), entity: e.entity_id }))
     ].sort(byName);
     const climate = pick('climate')[0];
@@ -143,7 +158,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       }))
       .sort(byName);
 
-    if (!lights.length && !power.length && !climate && !media.length && !covers.length) continue;
+    if (!allLights.length && !power.length && !climate && !media.length && !covers.length) continue;
 
     const room: Room & { _level: number } = {
       id: area.area_id,
@@ -151,7 +166,7 @@ export function deriveRooms(reg: Registries, states: EntityMap): Room[] {
       icon: mapAreaIcon(area.icon),
       _level: area.floor_id ? floorLevel.get(area.floor_id) ?? NO_FLOOR : NO_FLOOR
     };
-    if (lights.length) room.lights = lights;
+    if (allLights.length) room.lights = allLights;
     if (power.length) room.power = power;
     if (scenes.length) room.scenes = scenes;
     if (climate) room.climate = { entity: climate.entity };

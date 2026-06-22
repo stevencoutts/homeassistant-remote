@@ -14,8 +14,13 @@
   $: powerOn  = power.filter((p) => $entities[p.entity]?.state === 'on').length;
 
   const pct = (b: number | undefined) => (b ? Math.round((b / 255) * 100) : 0);
+  // Light-controlling switches land in the lights list but need switch.toggle.
+  const toggleAnyLight = (entity: string) =>
+    entity.startsWith('switch.') ? toggleSwitch(entity) : toggleLight(entity);
   const togglePower = (entity: string) =>
     entity.startsWith('light.') ? toggleLight(entity) : toggleSwitch(entity);
+  const hasBrightness = (entity: string) =>
+    !entity.startsWith('switch.') && $entities[entity]?.attributes.brightness !== undefined;
 </script>
 
 <div class="card lp-card">
@@ -43,12 +48,14 @@
                   <div class="item-right">
                     <span class="pct">{on ? level + '%' : 'off'}</span>
                     <button class="switch warm {on ? 'on' : ''}" role="switch" aria-checked={on}
-                      aria-label="Toggle {l.name}" on:click={() => toggleLight(l.entity)}></button>
+                      aria-label="Toggle {l.name}" on:click={() => toggleAnyLight(l.entity)}></button>
                   </div>
                 </div>
+                {#if hasBrightness(l.entity)}
                 <input type="range" min="1" max="100" value={level} disabled={!on}
                   aria-label="{l.name} brightness"
                   on:input={(ev) => setLightBrightness(l.entity, +ev.currentTarget.value)} />
+                {/if}
               </div>
             {/each}
           </div>
@@ -107,7 +114,7 @@
             <div class="item-right">
               <span class="pct">{on ? level + '%' : 'off'}</span>
               <button class="switch warm {on ? 'on' : ''}" role="switch" aria-checked={on}
-                aria-label="Toggle {l.name}" on:click={() => toggleLight(l.entity)}></button>
+                aria-label="Toggle {l.name}" on:click={() => toggleAnyLight(l.entity)}></button>
             </div>
           </div>
           <input type="range" min="1" max="100" value={level} disabled={!on}
