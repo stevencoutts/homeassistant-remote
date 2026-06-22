@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildChannelsUrl,
-  buildGuideUrl,
+  buildGuideBody,
+  channelSortKey,
   pickUser,
   matchAppleTvSession,
   layout
@@ -9,21 +10,33 @@ import {
 import { mockChannels, mockGuide } from './mock';
 import type { Programme } from './types';
 
-describe('url builders', () => {
-  it('includes the user id and image flag for channels', () => {
+describe('request builders', () => {
+  it('asks for every channel with images', () => {
     const u = buildChannelsUrl('u1');
     expect(u).toContain('/LiveTv/Channels?');
     expect(u).toContain('UserId=u1');
     expect(u).toContain('EnableImages=true');
+    expect(u).toContain('Limit=1000');
   });
 
-  it('encodes channel ids and an ISO time window for the guide', () => {
+  it('builds an overlap-window guide body with the channel ids', () => {
     const start = Date.parse('2026-06-22T10:00:00.000Z');
     const end = Date.parse('2026-06-22T13:00:00.000Z');
-    const u = buildGuideUrl('u1', ['a', 'b'], start, end);
-    expect(u).toContain('ChannelIds=a%2Cb');
-    expect(u).toContain('MinStartDate=2026-06-22T10%3A00%3A00.000Z');
-    expect(u).toContain('MaxStartDate=2026-06-22T13%3A00%3A00.000Z');
+    const body = buildGuideBody('u1', ['a', 'b'], start, end);
+    expect(body).toMatchObject({
+      UserId: 'u1',
+      ChannelIds: ['a', 'b'],
+      MinEndDate: '2026-06-22T10:00:00.000Z',
+      MaxStartDate: '2026-06-22T13:00:00.000Z'
+    });
+  });
+});
+
+describe('channelSortKey', () => {
+  it('orders by numeric channel number, unknowns last', () => {
+    expect([{ number: '101' }, { number: '5' }, { number: undefined }, { number: '20' }]
+      .sort((a, b) => channelSortKey(a.number) - channelSortKey(b.number))
+      .map((c) => c.number)).toEqual(['5', '20', '101', undefined]);
   });
 });
 

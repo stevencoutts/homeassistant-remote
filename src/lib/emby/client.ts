@@ -14,28 +14,38 @@ export function buildChannelsUrl(userId: string): string {
     UserId: userId,
     EnableImages: 'true',
     EnableUserData: 'false',
-    SortBy: 'SortName',
+    // A high limit so every channel comes through (Emby otherwise pages).
+    Limit: '1000',
     Fields: 'ChannelInfo'
   });
   return `/LiveTv/Channels?${q}`;
 }
 
-export function buildGuideUrl(
+// Programmes are fetched with POST so the (potentially long) channel-id list
+// goes in the body rather than a URL that could exceed length limits. The
+// window is an overlap query: programmes that end after the window starts and
+// start before it ends — which includes the one currently airing.
+export function buildGuideBody(
   userId: string,
   channelIds: string[],
   startMs: number,
   endMs: number
-): string {
-  const q = new URLSearchParams({
+): Record<string, unknown> {
+  return {
     UserId: userId,
-    ChannelIds: channelIds.join(','),
-    MinStartDate: iso(startMs),
+    ChannelIds: channelIds,
+    MinEndDate: iso(startMs),
     MaxStartDate: iso(endMs),
-    MaxEndDate: iso(endMs),
-    SortBy: 'StartDate',
-    EnableImages: 'false'
-  });
-  return `/LiveTv/Programs?${q}`;
+    SortBy: ['StartDate'],
+    EnableImages: false,
+    EnableTotalRecordCount: false
+  };
+}
+
+// Channel "number" can be like "101" or "101.5"; sort numerically, unknowns last.
+export function channelSortKey(number?: string): number {
+  const f = parseFloat(String(number ?? ''));
+  return Number.isNaN(f) ? Number.MAX_SAFE_INTEGER : f;
 }
 
 interface EmbyUser {
@@ -131,6 +141,16 @@ async function embyGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function embyPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/emby${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`Emby ${path} -> ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 let userIdCache: string | null = null;
 async function getUserId(): Promise<string | null> {
   if (userIdCache) return userIdCache;
@@ -157,7 +177,9 @@ export async function getChannels(): Promise<Channel[]> {
   const uid = await getUserId();
   if (!uid) return [];
   const data = await embyGet<{ Items?: EmbyChannel[] }>(buildChannelsUrl(uid));
-  return (data.Items ?? []).map(mapChannel);
+  return (data.Items ?? [])
+    .map(mapChannel)
+    .sort((a, b) => channelSortKey(a.number) - channelSortKey(b.number));
 }
 
 export async function getGuide(
@@ -167,9 +189,10 @@ export async function getGuide(
 ): Promise<Programme[]> {
   if (!(await enabled())) return mockGuide(startMs, endMs);
   const uid = await getUserId();
-  if (!uid) return [];
-  const data = await embyGet<{ Items?: EmbyProgramme[] }>(
-    buildGuideUrl(uid, channelIds, startMs, endMs)
+  if (!uid || !channelIds.length) return [];
+  const data = await embyPost<{ Items?: EmbyProgramme[] }>(
+    '/LiveTv/Programs',
+    buildGuideBody(uid, channelIds, startMs, endMs)
   );
   return (data.Items ?? []).map(mapProgramme);
 }
