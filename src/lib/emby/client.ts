@@ -82,7 +82,14 @@ const isVideoClient = (s: EmbySession) =>
 
 // Significant words for hint matching — strip filler so "Living Room Apple TV"
 // matches an Emby session named "Apple TV Living Room" even with word reorder.
-const FILLER = new Set(['the', 'a', 'an', 'room', 'tv', 'and', 'of', 'in', 'my']);
+// Brand / client words appear in every Apple TV session's DeviceName and Client
+// ("... Apple TV", "Emby for Apple TV"), so they must not count as a match —
+// otherwise the Conservatory session "matches" a Living Room hint on "apple".
+const FILLER = new Set([
+  'the', 'a', 'an', 'room', 'tv', 'and', 'of', 'in', 'my',
+  'apple', 'appletv', 'google', 'android', 'amazon', 'fire', 'chromecast',
+  'roku', 'shield', 'emby', 'for'
+]);
 const sigWords = (s: string) =>
   s.toLowerCase().split(/\W+/).filter((w) => w.length > 1 && !FILLER.has(w));
 
@@ -140,6 +147,20 @@ function bestHintMatch(
   return { session: top.s, score: top.score, confident };
 }
 
+// True when a session's name positively names a DIFFERENT room than the hint:
+// it has significant (non-brand) words and none of them overlap the hint. Used
+// to reject a stale stored binding whose device is plainly the wrong room (e.g.
+// a binding pointing at "Conservatory Apple TV" while we want the Living Room).
+// A session with no significant words (a generic "Apple TV") does not conflict.
+function conflictsWithHint(s: EmbySession, hint?: string): boolean {
+  if (!hint) return false;
+  const hw = sigWords(hint);
+  const cw = sigWords(`${s.DeviceName ?? ''} ${s.Client ?? ''}`);
+  if (!hw.length || !cw.length) return false;
+  if (hintScore(s, hint) >= 100) return false; // exact substring — not a conflict
+  return cw.every((w) => !hw.includes(w));
+}
+
 // Match priority (highest → lowest):
 //   1. DeviceId  — Emby's stable per-install UUID; stored after first play, but
 //                  ignored if a confident name match points at a different device
@@ -165,8 +186,12 @@ export function matchAppleTvSession(
 
   if (storedDeviceId) {
     const m = candidates.find((s) => s.DeviceId === storedDeviceId);
-    // Trust the binding unless a confident name match disagrees with it.
-    if (m && !(hintMatch?.confident && hintMatch.session.DeviceId !== storedDeviceId)) {
+    // Trust the binding unless (a) a confident name match disagrees with it, or
+    // (b) the bound device's own name clearly names a different room than the
+    // hint. (b) matters when this room's TV is asleep and the only session awake
+    // is another room's — without it a stale binding keeps hijacking that room.
+    const disagrees = hintMatch?.confident && hintMatch.session.DeviceId !== storedDeviceId;
+    if (m && !disagrees && !conflictsWithHint(m, hint)) {
       return toTarget(m);
     }
   }
@@ -184,8 +209,11 @@ export function matchAppleTvSession(
 
   if (hintMatch?.confident) return toTarget(hintMatch.session);
 
-  // No confident signal. A lone candidate is unambiguous; otherwise refuse to
-  // guess — returning null lets the caller wake this room's own Apple TV.
+  // No confident signal. If we were given a hint we know which room we want, so
+  // a non-matching session (even the only one awake) is the WRONG room — refuse
+  // and let the caller wake this room's own Apple TV. Only fall back to a lone
+  // candidate when we have no hint at all to go on.
+  if (hint) return null;
   if (candidates.length === 1) return toTarget(candidates[0]);
   return null;
 }

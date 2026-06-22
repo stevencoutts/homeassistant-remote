@@ -114,6 +114,32 @@ describe('matchAppleTvSession', () => {
       matchAppleTvSession(twoApple, 'Apple TV', undefined, 'dev-cons')?.sessionId
     ).toBe('b');
   });
+
+  it('refuses the only awake session when it plainly names a different room', () => {
+    // In the Living Room, but only the Conservatory Apple TV has a live Emby
+    // session. Must return null so the caller wakes the Living Room device —
+    // this is the exact "living room plays on the conservatory" bug.
+    const onlyConservatory = [
+      { Id: 'b', DeviceId: 'dev-cons', Client: 'Emby for Apple TV', DeviceName: 'Conservatory Apple TV' }
+    ];
+    expect(matchAppleTvSession(onlyConservatory, 'Living Room Apple TV')).toBeNull();
+  });
+
+  it('rejects a stale binding to another room when only that room is awake', () => {
+    const onlyConservatory = [
+      { Id: 'b', DeviceId: 'dev-cons', Client: 'Emby for Apple TV', DeviceName: 'Conservatory Apple TV' }
+    ];
+    // Binding left over from an earlier wrong guess points at the Conservatory.
+    expect(
+      matchAppleTvSession(onlyConservatory, 'Living Room Apple TV', undefined, 'dev-cons')
+    ).toBeNull();
+  });
+
+  it('still plays to a lone generically-named session (single-TV house)', () => {
+    const one = [{ Id: 'a', DeviceId: 'd', Client: 'Emby for Apple TV', DeviceName: 'Apple TV' }];
+    expect(matchAppleTvSession(one, 'Apple TV', undefined, 'd')?.sessionId).toBe('a');
+    expect(matchAppleTvSession(one, 'Apple TV')?.sessionId).toBe('a');
+  });
 });
 
 describe('layout', () => {
