@@ -33,6 +33,9 @@ export const openCoverCall = (id: string) => call('cover', 'open_cover', id);
 export const closeCoverCall = (id: string) => call('cover', 'close_cover', id);
 export const stopCoverCall = (id: string) => call('cover', 'stop_cover', id);
 export const sceneCall = (id: string) => call('scene', 'turn_on', id);
+export const mediaTurnOnCall = (id: string) => call('media_player', 'turn_on', id);
+export const selectSourceCall = (id: string, source: string) =>
+  call('media_player', 'select_source', id, { source });
 export const muteCall = (id: string, mute: boolean) => call('media_player', 'volume_mute', id, { is_volume_muted: mute });
 export const switchToggleCall = (id: string) => call('switch', 'toggle', id);
 export const playMediaCall = (id: string, contentId: string, contentType: string) =>
@@ -93,6 +96,15 @@ export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }
 export function mediaMute(id: string, mute: boolean) {
   dispatch(muteCall(id, mute), (e) => ({ ...e, attributes: { ...e.attributes, is_volume_muted: mute } }));
+}
+// Wake an Apple TV and launch an app on it (used to bring up Emby before
+// playing). select_source uses the app name as the Apple TV integration lists
+// it in source_list.
+export function mediaTurnOn(id: string) {
+  dispatch(mediaTurnOnCall(id));
+}
+export function mediaSelectSource(id: string, source: string) {
+  dispatch(selectSourceCall(id, source));
 }
 export function toggleSwitch(id: string) {
   const on = get(entities)[id]?.state === 'on';

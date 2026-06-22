@@ -19,6 +19,15 @@
 
   // The room's Apple TV (if any) is the Emby Live TV play target.
   $: appleTv = players.find((p) => /apple.?tv/i.test(p.entity));
+  // The Emby app's name as the Apple TV lists it, used to launch it via HA.
+  $: embySource = (() => {
+    const list = appleTv ? $entities[appleTv.entity]?.attributes.source_list : undefined;
+    if (Array.isArray(list)) {
+      const m = list.find((s) => /emby/i.test(String(s)));
+      if (m) return String(m);
+    }
+    return 'Emby';
+  })();
   let showGuide = false;
 
   let selectedIdx = 0;
@@ -206,7 +215,12 @@
 </div>
 
 {#if showGuide}
-  <EpgGuide appleTvHint={appleTv?.name ?? ''} onClose={() => (showGuide = false)} />
+  <EpgGuide
+    appleTvHint={appleTv?.name ?? ''}
+    appleTvEntity={appleTv?.entity ?? ''}
+    {embySource}
+    onClose={() => (showGuide = false)}
+  />
 {/if}
 
 <style>

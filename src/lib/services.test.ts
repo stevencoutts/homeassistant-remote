@@ -8,6 +8,8 @@ import {
   volumeCall,
   coverPositionCall,
   sceneCall,
+  mediaTurnOnCall,
+  selectSourceCall,
   setLightBrightness,
   setVolume,
   setCoverPosition,
@@ -43,6 +45,12 @@ describe('service-call builders', () => {
     });
     expect(sceneCall('scene.x')).toEqual({
       domain: 'scene', service: 'turn_on', data: {}, target: { entity_id: 'scene.x' }
+    });
+    expect(mediaTurnOnCall('media_player.atv')).toEqual({
+      domain: 'media_player', service: 'turn_on', data: {}, target: { entity_id: 'media_player.atv' }
+    });
+    expect(selectSourceCall('media_player.atv', 'Emby')).toEqual({
+      domain: 'media_player', service: 'select_source', data: { source: 'Emby' }, target: { entity_id: 'media_player.atv' }
     });
   });
 

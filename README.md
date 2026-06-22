@@ -53,9 +53,13 @@ server-side, so it never reaches a browser (same pattern as the HA token).
 Create the key in Emby under Settings → Advanced → API Keys.
 
 Pressing a programme tells Emby to play that channel on the room's Apple TV via
-Emby's session remote, so the **Emby app must be open on the Apple TV** for it to
-be a controllable target. The Apple TV session and the Live TV user are
-auto-detected; override with `EMBY_USER_ID` / `EMBY_APPLE_TV_DEVICE` if needed.
+Emby's session remote. If the Emby app is not already running, the app first
+wakes the Apple TV and launches Emby through Home Assistant (`media_player.turn_on`
++ `select_source`), waits for the Emby session to register, then plays — so you do
+not need to open the app by hand. This needs the HA Apple TV (pyatv) integration,
+with Emby appearing in the player's source list. The Apple TV session and the Live
+TV user are auto-detected; override with `EMBY_USER_ID` / `EMBY_APPLE_TV_DEVICE`
+if needed.
 
 **Security:** the proxy has no built-in login — anyone who can reach `:8085` can
 control HA (the blast radius of the wall switches it replaces, on a trusted LAN).

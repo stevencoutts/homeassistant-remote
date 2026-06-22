@@ -2,10 +2,16 @@
   import { onMount } from 'svelte';
   import { icons } from '$lib/icons';
   import { getChannels, getGuide, findPlayTarget, playChannel } from '$lib/emby/client';
+  import { mediaTurnOn, mediaSelectSource } from '$lib/services';
   import type { Channel, Programme, PlayTarget } from '$lib/emby/types';
 
   // The room's Apple TV display name, used to target the right Emby session.
   export let appleTvHint = '';
+  // The Apple TV's HA media_player entity, used to wake it and launch Emby when
+  // no Emby session exists yet.
+  export let appleTvEntity = '';
+  // The Emby app's name in the Apple TV source list (for select_source).
+  export let embySource = 'Emby';
   export let onClose: () => void = () => {};
 
   const HALF = 30 * 60_000;
@@ -35,9 +41,22 @@
   let toastTimer: ReturnType<typeof setTimeout>;
 
   onMount(async () => {
+    // The session lookup must not block loading the guide — the guide comes from
+    // the Emby server, the session only matters when you press play (and we wake
+    // the Apple TV then). So look it up best-effort and swallow failures.
+    findPlayTarget(appleTvHint)
+      .then((t) => (target = t))
+      .catch((e) => console.error('Emby session lookup failed', e));
+
     try {
-      target = await findPlayTarget(appleTvHint);
       channels = await getChannels();
+    } catch (e) {
+      console.error('Emby channels load failed', e);
+      error = `Could not load channels: ${(e as Error).message}`;
+      loading = false;
+      return;
+    }
+    try {
       // Fetch a little before the window so currently-airing programmes appear.
       guide = await getGuide(
         channels.map((c) => c.id),
@@ -45,10 +64,10 @@
         windowEnd
       );
     } catch (e) {
-      error = 'Could not load the TV guide.';
-    } finally {
-      loading = false;
+      // Channels still render; programmes just stay empty.
+      console.error('Emby guide load failed', e);
     }
+    loading = false;
   });
 
   function progsFor(channelId: string): Programme[] {
@@ -65,14 +84,42 @@
   const isLive = (p: Programme) => p.start <= now && now < p.end;
   const channelName = (id: string) => channels.find((c) => c.id === id)?.name ?? 'channel';
 
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // Ensure there is an Emby session to play to. If none, wake the Apple TV and
+  // launch Emby via HA, then poll for the session to register.
+  let waking = false;
+  async function ensureTarget(): Promise<PlayTarget | null> {
+    if (target) return target;
+    if (!appleTvEntity) return null;
+    waking = true;
+    flash('Starting Emby on the Apple TV…');
+    mediaTurnOn(appleTvEntity);
+    if (embySource) mediaSelectSource(appleTvEntity, embySource);
+    try {
+      for (let i = 0; i < 12; i++) {
+        await delay(1500);
+        const t = await findPlayTarget(appleTvHint);
+        if (t) {
+          target = t;
+          return t;
+        }
+      }
+      return null;
+    } finally {
+      waking = false;
+    }
+  }
+
   async function play(p: Programme) {
-    if (!target) {
-      flash('No Apple TV session found — open the Emby app on it first.');
+    const t = await ensureTarget();
+    if (!t) {
+      flash('Could not reach the Apple TV. Open the Emby app on it and try again.');
       return;
     }
     try {
-      await playChannel(target.sessionId, p.channelId);
-      flash(`Playing ${channelName(p.channelId)} on ${target.name}`);
+      await playChannel(t.sessionId, p.channelId);
+      flash(`Playing ${channelName(p.channelId)} on ${t.name}`);
     } catch {
       flash('Could not start playback.');
     }
@@ -90,7 +137,7 @@
 
 <svelte:window on:keydown={onKey} />
 
-<div class="epg" role="dialog" aria-label="TV guide">
+<div class="epg" role="dialog" aria-label="TV guide" aria-busy={waking}>
   <header class="epg-head">
     <div class="epg-title">
       <span class="icon">{@html icons.tv}</span>
