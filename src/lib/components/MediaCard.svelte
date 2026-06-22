@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { entities } from '$lib/stores';
+  import { entities, embyEnabled } from '$lib/stores';
   import { icons } from '$lib/icons';
   import {
     mediaPlayPause,
@@ -11,10 +11,15 @@
     playFavourite
   } from '$lib/services';
   import { loadFavourites, type Favourite } from '$lib/ha/favourites';
+  import EpgGuide from './EpgGuide.svelte';
   import type { NamedEntity } from '$lib/types';
 
   export let players: NamedEntity[];
   export let soundModes: NamedEntity[] = [];
+
+  // The room's Apple TV (if any) is the Emby Live TV play target.
+  $: appleTv = players.find((p) => /apple.?tv/i.test(p.entity));
+  let showGuide = false;
 
   let selectedIdx = 0;
   let userPicked = false;
@@ -100,7 +105,14 @@
   {/if}
   <div class="card-head">
     <div class="label"><span class="icon">{@html icons.media}</span>Media</div>
-    <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
+    <div class="head-right">
+      {#if $embyEnabled && appleTv}
+        <button class="guide-btn" on:click={() => (showGuide = true)}>
+          <span class="icon">{@html icons.tv}</span>TV Guide
+        </button>
+      {/if}
+      <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
+    </div>
   </div>
 
   {#if players.length > 1}
@@ -193,7 +205,42 @@
   {/if}
 </div>
 
+{#if showGuide}
+  <EpgGuide appleTvHint={appleTv?.name ?? ''} onClose={() => (showGuide = false)} />
+{/if}
+
 <style>
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .guide-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+    color: inherit;
+    font-size: 0.82rem;
+    font-weight: 560;
+    cursor: pointer;
+  }
+  .guide-btn:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .guide-btn .icon {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+  }
+  .guide-btn .icon :global(svg) {
+    width: 18px;
+    height: 18px;
+  }
   /* Now-playing artwork as a soft backdrop; content sits above it. */
   .media-card {
     position: relative;

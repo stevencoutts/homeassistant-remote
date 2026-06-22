@@ -18,5 +18,7 @@ export const icons: Record<string, string> = {
   volMuted: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 4V5L8 9H4ZM16 10l4 4M20 10l-4 4"/></svg>',
   cog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1 1 0 0 0 .2 1.1l.1.1a1.5 1.5 0 1 1-2.1 2.1l-.1-.1a1 1 0 0 0-1.7.7v.1a1.5 1.5 0 1 1-3 0v-.1a1 1 0 0 0-1.7-.7l-.1.1a1.5 1.5 0 1 1-2.1-2.1l.1-.1a1 1 0 0 0-.7-1.7h-.1a1.5 1.5 0 1 1 0-3h.1a1 1 0 0 0 .7-1.7l-.1-.1A1.5 1.5 0 1 1 8.9 5.4l.1.1a1 1 0 0 0 1.7-.7v-.1a1.5 1.5 0 1 1 3 0v.1a1 1 0 0 0 1.7.7l.1-.1a1.5 1.5 0 1 1 2.1 2.1l-.1.1a1 1 0 0 0 .2 1.1Z"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
-  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v9M7.5 6.5a7 7 0 1 0 9 0"/></svg>'
+  power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v9M7.5 6.5a7 7 0 1 0 9 0"/></svg>',
+  tv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 };

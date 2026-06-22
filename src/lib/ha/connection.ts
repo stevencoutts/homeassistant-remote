@@ -81,15 +81,16 @@ export async function connectViaProxy(): Promise<void> {
   await connectWith(window.location.origin, 'proxy');
 }
 
-// Whether the serving container provides a central proxy. No secrets in this file.
-export async function loadAppConfig(): Promise<{ proxy: boolean }> {
+// Whether the serving container provides a central proxy and/or the Emby Live
+// TV proxy. No secrets in this file.
+export async function loadAppConfig(): Promise<{ proxy: boolean; emby: boolean }> {
   try {
     const res = await fetch(`${base}/config.json`, { cache: 'no-cache' });
-    if (!res.ok) return { proxy: false };
+    if (!res.ok) return { proxy: false, emby: false };
     const cfg = await res.json();
-    return { proxy: cfg?.proxy === true };
+    return { proxy: cfg?.proxy === true, emby: cfg?.emby === true };
   } catch {
-    return { proxy: false };
+    return { proxy: false, emby: false };
   }
 }
 

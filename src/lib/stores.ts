@@ -30,6 +30,10 @@ export const status = writable<'connecting' | 'connected' | 'disconnected' | 'of
 // Drives the first-run / reconfigure settings overlay.
 export const showSettings = writable<boolean>(false);
 
+// True when the serving container exposes the Emby Live TV proxy (set from
+// /config.json on launch). Gates the TV-guide button.
+export const embyEnabled = writable<boolean>(false);
+
 // Per-device room visibility (opt-out): only explicitly-hidden area IDs are filtered,
 // so new HA areas appear automatically. Stored locally, never in the repo.
 const HIDDEN_KEY = 'room-remote:hiddenRooms';

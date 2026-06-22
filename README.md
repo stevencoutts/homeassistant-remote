@@ -44,6 +44,19 @@ by entering its own URL/token in the gear ⚙ settings.
 
 Leave `.env` unset to serve static-only (each device enters its own credentials).
 
+### Emby Live TV guide (optional)
+
+Set `EMBY_URL` and `EMBY_API_KEY` in `.env` to enable a full-screen TV guide,
+opened from the **TV Guide** button on the media card in any room that has an
+Apple TV. The container proxies Emby under `/emby/*` and injects the API key
+server-side, so it never reaches a browser (same pattern as the HA token).
+Create the key in Emby under Settings → Advanced → API Keys.
+
+Pressing a programme tells Emby to play that channel on the room's Apple TV via
+Emby's session remote, so the **Emby app must be open on the Apple TV** for it to
+be a controllable target. The Apple TV session and the Live TV user are
+auto-detected; override with `EMBY_USER_ID` / `EMBY_APPLE_TV_DEVICE` if needed.
+
 **Security:** the proxy has no built-in login — anyone who can reach `:8085` can
 control HA (the blast radius of the wall switches it replaces, on a trusted LAN).
 Do not expose it to the internet without fronting it with auth (reverse-proxy
