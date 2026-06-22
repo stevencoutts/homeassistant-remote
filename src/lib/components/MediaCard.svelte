@@ -61,22 +61,27 @@
   $: muted = ve?.attributes.is_volume_muted === true;
   $: vol = Math.round((ve?.attributes.volume_level ?? 0) * 100);
 
-  // Sonos favourites: try each non-Apple-TV player until one returns results.
-  // Track which entity owns the favourites so we only show them on that tab.
+  // Favourites are a Sonos feature, so only Sonos players are queried for them.
+  // A Sonos is identified by the group_members attribute, which the Sonos
+  // integration always sets and other players (Google/Android TV, Chromecast,
+  // Apple TV) never do — so a TV with its own "Favorites" node can't hijack the
+  // presets. Re-runs when the set of Sonos players changes (e.g. one becomes
+  // available).
+  $: sonosIds = players
+    .filter((p) => Array.isArray($entities[p.entity]?.attributes.group_members))
+    .map((p) => p.entity);
+
   let favourites: Favourite[] = [];
   let favouritesOwner = '';
   let favKey = '';
   $: {
-    const key = players.map((p) => p.entity).join(',');
+    const key = sonosIds.join(',');
     if (key !== favKey) {
       favKey = key;
       favourites = [];
       favouritesOwner = '';
-      const candidates = players
-        .filter((p) => !/apple.?tv/i.test(p.entity))
-        .map((p) => p.entity);
       (async () => {
-        for (const id of candidates) {
+        for (const id of sonosIds) {
           const f = await loadFavourites(id);
           if (f.length > 0 && favKey === key) {
             favourites = f;
