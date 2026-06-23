@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import { entities, embyEnabled, plexEnabled } from '$lib/stores';
   import { resolveTrack, setRating, thumbState, nextRating, type TrackRating } from '$lib/plex/client';
+  import { formatTime, livePosition, progressPct } from '$lib/util/progress';
   import { icons } from '$lib/icons';
   import {
     mediaPlayPause,
@@ -175,6 +177,26 @@
     }
   }
 
+  // --- Live track progress ---
+  // HA samples media_position at media_position_updated_at; tick a 1s clock so
+  // the bar advances between state pushes while playing.
+  let nowTs = Date.now();
+  let tick: ReturnType<typeof setInterval>;
+  onMount(() => { tick = setInterval(() => (nowTs = Date.now()), 1000); });
+  onDestroy(() => clearInterval(tick));
+  $: duration = Number(attrs.media_duration) || 0;
+  $: hasProgress = !idle && duration > 0;
+  $: position = hasProgress
+    ? livePosition({
+        position: Number(attrs.media_position) || 0,
+        updatedAt: attrs.media_position_updated_at ? Date.parse(attrs.media_position_updated_at) : 0,
+        duration,
+        playing,
+        now: nowTs
+      })
+    : 0;
+  $: pct = progressPct(position, duration);
+
   $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
   $: muted = ve?.attributes.is_volume_muted === true;
@@ -300,6 +322,14 @@
   </div>
 
   {#if rateToast}<div class="rate-toast">{rateToast}</div>{/if}
+
+  {#if hasProgress}
+    <div class="progress">
+      <span class="time">{formatTime(position)}</span>
+      <div class="bar"><div class="fill" style="width:{pct}%"></div></div>
+      <span class="time">{formatTime(duration)}</span>
+    </div>
+  {/if}
 
   <div class="transport">
     {#if canShuffle}
@@ -451,6 +481,32 @@
   .rate-btn:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+  /* Track progress: elapsed | bar | duration. */
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .progress .time {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex: none;
+    min-width: 2.4em;
+    text-align: center;
+  }
+  .progress .bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--panel-3, rgba(255, 255, 255, 0.12));
+    overflow: hidden;
+  }
+  .progress .fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--blue, #5aa0ff);
   }
   .rate-toast {
     position: absolute;
