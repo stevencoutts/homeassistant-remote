@@ -83,14 +83,14 @@ export async function connectViaProxy(): Promise<void> {
 
 // Whether the serving container provides a central proxy and/or the Emby Live
 // TV proxy. No secrets in this file.
-export async function loadAppConfig(): Promise<{ proxy: boolean; emby: boolean }> {
+export async function loadAppConfig(): Promise<{ proxy: boolean; emby: boolean; plex: boolean }> {
   try {
     const res = await fetch(`${base}/config.json`, { cache: 'no-cache' });
-    if (!res.ok) return { proxy: false, emby: false };
+    if (!res.ok) return { proxy: false, emby: false, plex: false };
     const cfg = await res.json();
-    return { proxy: cfg?.proxy === true, emby: cfg?.emby === true };
+    return { proxy: cfg?.proxy === true, emby: cfg?.emby === true, plex: cfg?.plex === true };
   } catch {
-    return { proxy: false, emby: false };
+    return { proxy: false, emby: false, plex: false };
   }
 }
 

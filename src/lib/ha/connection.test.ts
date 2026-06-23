@@ -23,15 +23,15 @@ describe('loadAppConfig', () => {
   const realFetch = globalThis.fetch;
   afterEach(() => { globalThis.fetch = realFetch; });
 
-  it('returns proxy:true (and the emby flag) when the server says so', async () => {
-    globalThis.fetch = (async () => ({ ok: true, json: async () => ({ proxy: true, emby: true }) })) as unknown as typeof fetch;
-    expect(await loadAppConfig()).toEqual({ proxy: true, emby: true });
+  it('returns proxy:true (and the emby/plex flags) when the server says so', async () => {
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({ proxy: true, emby: true, plex: true }) })) as unknown as typeof fetch;
+    expect(await loadAppConfig()).toEqual({ proxy: true, emby: true, plex: true });
   });
 
   it('returns false flags on non-ok or error', async () => {
     globalThis.fetch = (async () => ({ ok: false, json: async () => ({}) })) as unknown as typeof fetch;
-    expect(await loadAppConfig()).toEqual({ proxy: false, emby: false });
+    expect(await loadAppConfig()).toEqual({ proxy: false, emby: false, plex: false });
     globalThis.fetch = (async () => { throw new Error('network'); }) as unknown as typeof fetch;
-    expect(await loadAppConfig()).toEqual({ proxy: false, emby: false });
+    expect(await loadAppConfig()).toEqual({ proxy: false, emby: false, plex: false });
   });
 });

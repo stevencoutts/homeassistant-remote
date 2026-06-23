@@ -76,6 +76,19 @@ With no HA connection it serves a small mock library so the UI runs offline. If
 Plex sits somewhere other than the Sonos browse root on your system, adjust
 `pickMusicRoot` in `src/lib/ha/browse.ts`.
 
+### Plex track ratings (thumbs up/down)
+
+Set `PLEX_URL` and `PLEX_TOKEN` in `.env` to show thumbs up/down on the media
+card for the playing track. Home Assistant cannot write ratings, so the rating
+goes to Plex directly: the container proxies `/plex/*` with the token injected
+server-side (never reaching a browser, same pattern as Emby/HA).
+
+Plex uses a 0-10 star rating for library music, so thumbs up sets 5 stars (10),
+thumbs down sets 1 star (2), and tapping the active thumb again clears it. The
+playing track is matched to its Plex item via the active Plex session (by title
+and artist), falling back to a rating key parsed from the media id. Find your
+token as `X-Plex-Token` in a Plex Web request.
+
 **Security:** the proxy has no built-in login — anyone who can reach `:8085` can
 control HA (the blast radius of the wall switches it replaces, on a trusted LAN).
 Do not expose it to the internet without fronting it with auth (reverse-proxy

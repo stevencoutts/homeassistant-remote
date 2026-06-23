@@ -5,7 +5,7 @@
   import { showSettings } from '$lib/stores';
   import Settings from '$lib/components/Settings.svelte';
   import { icons } from '$lib/icons';
-  import { entities, currentRoomId, rooms, visibleRooms, status, embyEnabled } from '$lib/stores';
+  import { entities, currentRoomId, rooms, visibleRooms, status, embyEnabled, plexEnabled } from '$lib/stores';
   import { battery } from '$lib/device/battery';
   import RoomNav from '$lib/components/RoomNav.svelte';
   import LightsCard from '$lib/components/LightsCard.svelte';
@@ -23,7 +23,10 @@
     // Surface whether the serving container offers the Emby guide (independent
     // of how we connect to HA).
     loadAppConfig()
-      .then((c) => embyEnabled.set(c.emby))
+      .then((c) => {
+        embyEnabled.set(c.emby);
+        plexEnabled.set(c.plex);
+      })
       .catch(() => {});
 
     // 1) Per-device credentials override everything.

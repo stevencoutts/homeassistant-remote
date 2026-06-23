@@ -34,6 +34,10 @@ export const showSettings = writable<boolean>(false);
 // /config.json on launch). Gates the TV-guide button.
 export const embyEnabled = writable<boolean>(false);
 
+// True when the serving container exposes the Plex proxy (set from
+// /config.json on launch). Gates the track thumbs up/down rating buttons.
+export const plexEnabled = writable<boolean>(false);
+
 // Per-device room visibility (opt-out): only explicitly-hidden area IDs are filtered,
 // so new HA areas appear automatically. Stored locally, never in the repo.
 const HIDDEN_KEY = 'room-remote:hiddenRooms';

@@ -16,13 +16,54 @@ const EMBY_URL = process.env.EMBY_URL;
 const EMBY_API_KEY = process.env.EMBY_API_KEY;
 const embyEnabled = Boolean(EMBY_URL && EMBY_API_KEY);
 
+// Optional Plex proxy, used for track ratings (thumbs up/down). The token is
+// injected server-side (X-Plex-Token header + query param) so it never reaches
+// a browser, mirroring the Emby/HA pattern. Plex returns JSON when asked.
+const PLEX_URL = process.env.PLEX_URL;
+const PLEX_TOKEN = process.env.PLEX_TOKEN;
+const plexEnabled = Boolean(PLEX_URL && PLEX_TOKEN);
+
 const serve = sirv('build', { single: true, etag: true });
 
 const server = createServer((req, res) => {
   if (req.url === '/config.json') {
     res.setHeader('content-type', 'application/json');
     res.setHeader('cache-control', 'no-cache');
-    res.end(JSON.stringify({ proxy: proxyEnabled, emby: embyEnabled }));
+    res.end(JSON.stringify({ proxy: proxyEnabled, emby: embyEnabled, plex: plexEnabled }));
+    return;
+  }
+  // Proxy Plex API. /plex/<path> -> PLEX_URL/<path> with the token added
+  // server-side. Forwards method (GET for lookups, PUT for /:/rate), query and
+  // body. Asks Plex for JSON (it defaults to XML).
+  if (plexEnabled && req.url?.startsWith('/plex/')) {
+    const target = new URL(req.url.slice('/plex'.length), PLEX_URL);
+    if (!target.searchParams.has('X-Plex-Token')) target.searchParams.set('X-Plex-Token', PLEX_TOKEN);
+    const lib = target.protocol === 'https:' ? httpsRequest : httpRequest;
+    const where = `${target.protocol}//${target.host}${target.pathname}`;
+    const upstream = lib(
+      target,
+      {
+        method: req.method,
+        headers: {
+          'X-Plex-Token': PLEX_TOKEN,
+          accept: 'application/json',
+          ...(req.headers['content-type'] ? { 'content-type': req.headers['content-type'] } : {})
+        }
+      },
+      (r) => {
+        console.log(`[plex] ${req.method} ${where} -> ${r.statusCode}`);
+        res.writeHead(r.statusCode ?? 200, {
+          'content-type': r.headers['content-type'] ?? 'application/json',
+          'cache-control': 'no-cache'
+        });
+        r.pipe(res);
+      }
+    );
+    upstream.on('error', (e) => {
+      console.error(`[plex] ${req.method} ${where} error: ${e.message}`);
+      res.writeHead(502).end();
+    });
+    req.pipe(upstream);
     return;
   }
   // Proxy Emby Live TV API. /emby/<path> -> EMBY_URL/<path> with the API key
@@ -101,7 +142,7 @@ if (proxyEnabled) {
 
 server.listen(PORT, () => {
   console.log(
-    `room-remote listening on :${PORT} (proxy ${proxyEnabled ? 'on' : 'off'}, emby ${embyEnabled ? 'on' : 'off'})`
+    `room-remote listening on :${PORT} (proxy ${proxyEnabled ? 'on' : 'off'}, emby ${embyEnabled ? 'on' : 'off'}, plex ${plexEnabled ? 'on' : 'off'})`
   );
   if (embyEnabled) {
     console.log(`room-remote: EMBY_URL=${EMBY_URL} apiKeyLen=${EMBY_API_KEY.length}`);

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { entities, embyEnabled } from '$lib/stores';
+  import { entities, embyEnabled, plexEnabled } from '$lib/stores';
+  import { resolveTrack, setRating, thumbState, nextRating, type TrackRating } from '$lib/plex/client';
   import { icons } from '$lib/icons';
   import {
     mediaPlayPause,
@@ -110,6 +111,47 @@
     : false;
   $: shuffled = !!(shuffleTarget && $entities[shuffleTarget]?.attributes.shuffle);
 
+  // --- Plex track rating (thumbs up/down) ---
+  // Resolve the now-playing track's Plex rating when the track changes; only
+  // when the Plex proxy is enabled and something is actually playing. The look-up
+  // is keyed on content id + title so it re-runs once per track, not per render.
+  let track: TrackRating | null = null;
+  let _ratingKey = '';
+  $: np = {
+    title: attrs.media_title as string | undefined,
+    artist: attrs.media_artist as string | undefined,
+    album: attrs.media_album_name as string | undefined,
+    contentId: attrs.media_content_id as string | undefined
+  };
+  $: ratable = $plexEnabled && !idle && !!attrs.media_title;
+  $: {
+    const key = ratable ? `${np.contentId ?? ''}|${np.title ?? ''}` : '';
+    if (key !== _ratingKey) {
+      _ratingKey = key;
+      track = null;
+      if (ratable) {
+        const want = key;
+        resolveTrack(np)
+          .then((t) => { if (_ratingKey === want) track = t; })
+          .catch(() => {});
+      }
+    }
+  }
+  $: thumb = thumbState(track?.userRating);
+
+  async function rate(action: 'up' | 'down') {
+    if (!track) return;
+    const r = nextRating(track.userRating, action);
+    const prev = track.userRating;
+    track = { ...track, userRating: r }; // optimistic
+    try {
+      await setRating(track.ratingKey, r);
+    } catch (e) {
+      track = { ...track, userRating: prev }; // revert on failure
+      console.error('Plex rate failed', e);
+    }
+  }
+
   $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
   $: muted = ve?.attributes.is_volume_muted === true;
@@ -206,6 +248,30 @@
       <div class="a">{idle ? '' : attrs.media_artist ?? attrs.media_series_title ?? ''}</div>
       {#if attrs.source}<div class="src">{attrs.source}</div>{/if}
     </div>
+    {#if track}
+      <div class="rate">
+        <button
+          class="rate-btn up"
+          class:on={thumb === 'up'}
+          aria-label="Thumbs up"
+          aria-pressed={thumb === 'up'}
+          title="Rate up in Plex"
+          on:click={() => rate('up')}
+        >
+          {@html icons.thumb}
+        </button>
+        <button
+          class="rate-btn down"
+          class:on={thumb === 'down'}
+          aria-label="Thumbs down"
+          aria-pressed={thumb === 'down'}
+          title="Rate down in Plex"
+          on:click={() => rate('down')}
+        >
+          {@html icons.thumb}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="transport">
@@ -319,6 +385,41 @@
   }
   .t-btn.on {
     color: var(--accent);
+  }
+  /* Plex thumbs up/down sit at the right of the now-playing row. */
+  .media-meta {
+    flex: 1 1 auto;
+  }
+  .rate {
+    display: flex;
+    gap: 8px;
+    flex: none;
+  }
+  .rate-btn {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .rate-btn :global(svg) {
+    width: 20px;
+    height: 20px;
+  }
+  .rate-btn.down :global(svg) {
+    transform: rotate(180deg);
+  }
+  .rate-btn.up.on {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .rate-btn.down.on {
+    color: var(--red);
+    border-color: var(--red);
   }
   .head-right {
     display: flex;
