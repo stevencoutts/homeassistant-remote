@@ -100,6 +100,17 @@ Each card type renders only if the room config includes entities of that type.
 - Volume slider (`media_player.volume_set`, 0 to 100%).
 - Card hidden for rooms with no media player.
 - Gracefully handle `unavailable`/`off` players (show an idle state, disable transport).
+- Sonos favourites presets: a scrollable row of saved stations/playlists read
+  from the Sonos "Favorites" node via `media_player/browse_media`, played with
+  `media_player.play_media` to the group coordinator.
+- Music browser (rooms with a Sonos): a **Music** button opens a full-screen
+  browser over the Sonos `media_player/browse_media` tree, source Plex (HA's
+  native Plex integration), with a Music Library fallback. Drill artist → album
+  → track / playlists; tap a playable node to play it on the group coordinator.
+  Echoes each node's `media_content_id`/`media_content_type` to
+  `media_player.play_media` (no source-specific id construction). Runs against a
+  mock tree with no HA connection. See
+  `docs/superpowers/specs/2026-06-23-media-browser-design.md`.
 
 **Covers**
 

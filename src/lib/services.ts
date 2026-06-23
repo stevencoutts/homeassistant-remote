@@ -92,6 +92,10 @@ export function mediaPlayPause(id: string) {
 export function playFavourite(id: string, contentId: string, contentType: string) {
   dispatch(playMediaCall(id, contentId, contentType));
 }
+// Neutral alias used by the media browser; same play path as favourites.
+export function playMedia(id: string, contentId: string, contentType: string) {
+  dispatch(playMediaCall(id, contentId, contentType));
+}
 export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }
 export function mediaMute(id: string, mute: boolean) {

@@ -12,6 +12,7 @@
   } from '$lib/services';
   import { loadFavourites, type Favourite } from '$lib/ha/favourites';
   import EpgGuide from './EpgGuide.svelte';
+  import MediaBrowser from './MediaBrowser.svelte';
   import type { NamedEntity } from '$lib/types';
 
   export let players: NamedEntity[];
@@ -34,15 +35,19 @@
     return 'Emby';
   })();
   let showGuide = false;
+  let showBrowser = false;
 
-  // Close the guide whenever the room changes (players come from a different room).
+  // Close overlays whenever the room changes (players come from a different room).
   // MediaCard is not keyed so the same instance receives new props on room switch;
   // without this, showGuide would stay true and the guide would linger with a
   // stale/incorrect appleTvHint for a brief period.
   let _prevPlayersKey = '';
   $: {
     const key = players.map((p) => p.entity).join(',');
-    if (_prevPlayersKey !== '' && key !== _prevPlayersKey) showGuide = false;
+    if (_prevPlayersKey !== '' && key !== _prevPlayersKey) {
+      showGuide = false;
+      showBrowser = false;
+    }
     _prevPlayersKey = key;
   }
 
@@ -137,6 +142,11 @@
   <div class="card-head">
     <div class="label"><span class="icon">{@html icons.media}</span>Media</div>
     <div class="head-right">
+      {#if sonosIds.length}
+        <button class="guide-btn" on:click={() => (showBrowser = true)}>
+          <span class="icon">{@html icons.library}</span>Music
+        </button>
+      {/if}
       {#if $embyEnabled && appleTv}
         <button class="guide-btn" on:click={() => (showGuide = true)}>
           <span class="icon">{@html icons.tv}</span>TV Guide
@@ -243,6 +253,14 @@
     appleTvIp={appleTv?.ip ?? ''}
     {embySource}
     onClose={() => (showGuide = false)}
+  />
+{/if}
+
+{#if showBrowser && sonosIds.length}
+  <MediaBrowser
+    entity={sonosIds[0]}
+    playTarget={playTarget ?? sonosIds[0]}
+    onClose={() => (showBrowser = false)}
   />
 {/if}
 

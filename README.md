@@ -61,6 +61,21 @@ with Emby appearing in the player's source list. The Apple TV session and the Li
 TV user are auto-detected; override with `EMBY_USER_ID` / `EMBY_APPLE_TV_DEVICE`
 if needed.
 
+### Music browser (Plex)
+
+Rooms with a Sonos show a **Music** button on the media card. It opens a
+full-screen browser over the Sonos `media_player/browse_media` tree and plays
+the chosen item on the Sonos group coordinator with `media_player.play_media`.
+The source is Plex via Home Assistant's native Plex integration; if no Plex node
+is found it falls back to the Sonos Music Library. Browsing is folder-by-folder
+(artist → album → track, plus playlists); tapping a playable node plays it.
+
+No extra configuration: it uses the same HA connection as the rest of the app
+and constructs no Plex-specific IDs (it replays the IDs HA's browse returns).
+With no HA connection it serves a small mock library so the UI runs offline. If
+Plex sits somewhere other than the Sonos browse root on your system, adjust
+`pickMusicRoot` in `src/lib/ha/browse.ts`.
+
 **Security:** the proxy has no built-in login — anyone who can reach `:8085` can
 control HA (the blast radius of the wall switches it replaces, on a trusted LAN).
 Do not expose it to the internet without fronting it with auth (reverse-proxy
