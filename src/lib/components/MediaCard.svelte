@@ -137,16 +137,33 @@
       track = null; // clear the highlight at once; keep the control visible via `resolving`
       if (ratable) {
         resolving = true;
-        const want = key;
-        resolveTrack(np)
-          .then((t) => { if (_ratingKey === want) { track = t; resolving = false; } })
-          .catch(() => { if (_ratingKey === want) { track = null; resolving = false; } });
+        void resolveWithRetry(key, { ...np });
       } else {
         resolving = false;
       }
     }
   }
   $: thumb = thumbState(track?.userRating);
+
+  // The Plex session for a freshly-started track registers a moment after
+  // playback begins, so a single lookup often misses (then the thumbs only
+  // appear after a refresh). Retry with backoff, bailing out if the track
+  // changes underneath us.
+  async function resolveWithRetry(key: string, snap: typeof np) {
+    const delays = [0, 1000, 2000, 4000];
+    for (const d of delays) {
+      if (d) await new Promise((r) => setTimeout(r, d));
+      if (_ratingKey !== key) return; // track changed; abandon this resolve
+      const t = await resolveTrack(snap).catch(() => null);
+      if (_ratingKey !== key) return;
+      if (t) {
+        track = t;
+        resolving = false;
+        return;
+      }
+    }
+    resolving = false; // gave up: no rateable target for this track
+  }
 
   function flashRate(msg: string) {
     rateToast = msg;

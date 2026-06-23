@@ -108,32 +108,29 @@ async function enabled(): Promise<boolean> {
 const mockRatings = new Map<string, number>();
 
 // Resolve the currently-playing track to its Plex ratingKey and current rating.
-// Prefers the active Plex session (most reliable for "now playing"), then falls
-// back to a ratingKey parsed from the HA media_content_id.
+// Finds the key from the active Plex session (most reliable for "now playing"),
+// else from a key parsed off the HA media_content_id, then reads the
+// authoritative userRating from the track's metadata — the session object often
+// omits userRating, so reading it back is what makes a previously-liked song
+// show as liked.
 export async function resolveTrack(np: NowPlaying): Promise<TrackRating | null> {
   if (!(await enabled())) {
     const key = parseRatingKey(np.contentId) ?? 'mock';
     return { ratingKey: key, userRating: mockRatings.get(key) ?? 0 };
   }
+  let ratingKey: string | null = null;
   try {
     const data = await plexGet<{ MediaContainer?: { Metadata?: PlexMeta[] } }>('/status/sessions');
     const sess = pickSession(data.MediaContainer?.Metadata ?? [], np);
-    if (sess) return { ratingKey: sess.ratingKey, userRating: sess.userRating ?? 0 };
+    if (sess) ratingKey = sess.ratingKey;
   } catch (err) {
     console.error('Plex sessions lookup failed', err);
   }
-  const key = parseRatingKey(np.contentId);
-  if (!key) return null;
-  try {
-    const data = await plexGet<{ MediaContainer?: { Metadata?: PlexMeta[] } }>(
-      `/library/metadata/${key}`
-    );
-    const meta = data.MediaContainer?.Metadata?.[0];
-    return { ratingKey: key, userRating: meta?.userRating ?? 0 };
-  } catch (err) {
-    console.error('Plex metadata lookup failed', err);
-    return { ratingKey: key, userRating: 0 };
-  }
+  if (!ratingKey) ratingKey = parseRatingKey(np.contentId);
+  if (!ratingKey) return null;
+  // Read the authoritative rating; getRating returns 0 on failure (still usable).
+  const userRating = await getRating(ratingKey);
+  return { ratingKey, userRating };
 }
 
 // Read the current rating for a track straight from Plex (used to confirm a
