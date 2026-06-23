@@ -8,7 +8,8 @@
     setVolume,
     mediaMute,
     toggleSoundMode,
-    playFavourite
+    playFavourite,
+    toggleShuffle
   } from '$lib/services';
   import { loadFavourites, type Favourite } from '$lib/ha/favourites';
   import EpgGuide from './EpgGuide.svelte';
@@ -97,6 +98,18 @@
     const gm = src ? $entities[src]?.attributes.group_members : undefined;
     return Array.isArray(gm) && gm.length ? gm[0] : src;
   })();
+  // Shuffle targets the now-playing entity's group coordinator (Sonos applies
+  // shuffle to the live queue on the coordinator). SHUFFLE_SET is feature bit 5
+  // (value 32); show the control only when the player supports it.
+  $: shuffleTarget = (() => {
+    const gm = entity ? $entities[entity]?.attributes.group_members : undefined;
+    return Array.isArray(gm) && gm.length ? gm[0] : entity;
+  })();
+  $: canShuffle = shuffleTarget
+    ? (($entities[shuffleTarget]?.attributes.supported_features ?? 0) & 32) !== 0
+    : false;
+  $: shuffled = !!(shuffleTarget && $entities[shuffleTarget]?.attributes.shuffle);
+
   $: ve = volumeEntity ? $entities[volumeEntity] : undefined;
   $: volIdle = !ve || ve.state === 'off' || ve.state === 'unavailable';
   $: muted = ve?.attributes.is_volume_muted === true;
@@ -196,6 +209,19 @@
   </div>
 
   <div class="transport">
+    {#if canShuffle}
+      <button
+        class="t-btn shuffle"
+        class:on={shuffled}
+        disabled={idle}
+        aria-label="Shuffle"
+        aria-pressed={shuffled}
+        title={shuffled ? 'Shuffle on' : 'Shuffle off'}
+        on:click={() => toggleShuffle(shuffleTarget, !shuffled)}
+      >
+        {@html icons.shuffle}
+      </button>
+    {/if}
     <button class="t-btn" disabled={idle} aria-label="Previous" on:click={() => mediaPrevious(entity)}>
       {@html icons.prev}
     </button>
@@ -277,6 +303,23 @@
 {/if}
 
 <style>
+  /* Keep prev/play/next centred while the shuffle toggle sits on the far left. */
+  .transport {
+    position: relative;
+  }
+  .t-btn.shuffle {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .t-btn.shuffle :global(svg) {
+    width: 22px;
+    height: 22px;
+  }
+  .t-btn.on {
+    color: var(--accent);
+  }
   .head-right {
     display: flex;
     align-items: center;

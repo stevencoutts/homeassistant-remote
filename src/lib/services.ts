@@ -94,6 +94,10 @@ export function mediaPlayPause(id: string) {
 export function playFavourite(id: string, contentId: string, contentType: string) {
   dispatch(playMediaCall(id, contentId, contentType));
 }
+// Toggle shuffle on the now-playing card; reflects HA's `shuffle` attribute.
+export function toggleShuffle(id: string, on: boolean) {
+  dispatch(shuffleCall(id, on), (e) => ({ ...e, attributes: { ...e.attributes, shuffle: on } }));
+}
 // Neutral alias used by the media browser; same play path as favourites.
 export function playMedia(id: string, contentId: string, contentType: string) {
   dispatch(playMediaCall(id, contentId, contentType));
