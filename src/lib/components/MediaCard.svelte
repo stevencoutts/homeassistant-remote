@@ -112,6 +112,18 @@
     .filter((p) => Array.isArray($entities[p.entity]?.attributes.group_members))
     .map((p) => p.entity);
 
+  // The Sonos the music browser browses and plays to. Prefer the volume-routed
+  // Sonos (the room's real speaker), else the first Sonos in the room. Playback
+  // must target the group coordinator (group_members[0]); play_media to a
+  // grouped member is rejected — the same rule as favourites' playTarget, but
+  // resolved from a guaranteed-Sonos base so it can never fall back to a TV.
+  $: browseSonos =
+    (volumeEntity && /sonos/i.test(volumeEntity) ? volumeEntity : undefined) ?? sonosIds[0];
+  $: browseTarget = (() => {
+    const gm = browseSonos ? $entities[browseSonos]?.attributes.group_members : undefined;
+    return Array.isArray(gm) && gm.length ? gm[0] : browseSonos;
+  })();
+
   let favourites: Favourite[] = [];
   let favouritesOwner = '';
   let favKey = '';
@@ -256,10 +268,10 @@
   />
 {/if}
 
-{#if showBrowser && sonosIds.length}
+{#if showBrowser && browseSonos}
   <MediaBrowser
-    entity={sonosIds[0]}
-    playTarget={playTarget ?? sonosIds[0]}
+    entity={browseSonos}
+    playTarget={browseTarget ?? browseSonos}
     onClose={() => (showBrowser = false)}
   />
 {/if}

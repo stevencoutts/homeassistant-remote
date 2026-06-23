@@ -10,6 +10,8 @@ import {
   sceneCall,
   mediaTurnOnCall,
   selectSourceCall,
+  playMediaCall,
+  shuffleCall,
   setLightBrightness,
   setVolume,
   setCoverPosition,
@@ -51,6 +53,14 @@ describe('service-call builders', () => {
     });
     expect(selectSourceCall('media_player.atv', 'Emby')).toEqual({
       domain: 'media_player', service: 'select_source', data: { source: 'Emby' }, target: { entity_id: 'media_player.atv' }
+    });
+    expect(playMediaCall('media_player.sonos', 'plex://album/1', 'album')).toEqual({
+      domain: 'media_player', service: 'play_media',
+      data: { media_content_id: 'plex://album/1', media_content_type: 'album' },
+      target: { entity_id: 'media_player.sonos' }
+    });
+    expect(shuffleCall('media_player.sonos', true)).toEqual({
+      domain: 'media_player', service: 'shuffle_set', data: { shuffle: true }, target: { entity_id: 'media_player.sonos' }
     });
   });
 

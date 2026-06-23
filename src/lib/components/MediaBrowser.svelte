@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { icons } from '$lib/icons';
   import { findMusicRoot, browseNode, primaryAction, type BrowseItem, type BrowseNode } from '$lib/ha/browse';
-  import { playMedia } from '$lib/services';
+  import { playMediaResult, setShuffle } from '$lib/services';
 
   // The media_player to browse (the Sonos source).
   export let entity: string;
@@ -19,6 +19,9 @@
   let error = '';
   let toast = '';
   let toastTimer: ReturnType<typeof setTimeout>;
+  // When on, anything played (a track, album or whole playlist) is shuffled.
+  let shuffle = false;
+  let busy = false;
 
   onMount(async () => {
     try {
@@ -45,7 +48,7 @@
 
   async function open(item: BrowseItem) {
     if (primaryAction(item) === 'play') {
-      play(item);
+      await play(item);
       return;
     }
     stack = [...stack, item];
@@ -64,10 +67,23 @@
     await load();
   }
 
-  function play(item: BrowseItem) {
-    playMedia(playTarget, item.contentId, item.contentType);
-    flash(`Playing ${item.title}`);
-    setTimeout(onClose, 700);
+  async function play(item: BrowseItem) {
+    if (busy) return;
+    busy = true;
+    flash(`${shuffle ? 'Shuffling' : 'Playing'} ${item.title}…`);
+    try {
+      await playMediaResult(playTarget, item.contentId, item.contentType);
+      // Apply shuffle after the queue has loaded; Sonos shuffles the live queue.
+      await new Promise((r) => setTimeout(r, 300));
+      await setShuffle(playTarget, shuffle);
+      flash(`${shuffle ? 'Shuffling' : 'Playing'} ${item.title}`);
+      setTimeout(onClose, 700);
+    } catch (e) {
+      // Surface the real HA error instead of silently failing.
+      flash(`Could not play ${item.title}: ${(e as Error).message}`);
+    } finally {
+      busy = false;
+    }
   }
 
   function flash(msg: string) {
@@ -84,6 +100,10 @@
   }
 
   $: title = stack.length ? stack[stack.length - 1].title : current?.title ?? 'Music';
+  // The container we are inside (a playlist/album) when it is itself playable —
+  // drives the "Play all" action so a whole playlist plays in one tap.
+  $: container = stack.length ? stack[stack.length - 1] : null;
+  $: containerPlayable = !!container?.canPlay;
 </script>
 
 <svelte:window on:keydown={onKey} />
@@ -98,7 +118,24 @@
       {/if}
       <span class="mb-title-text">{title}</span>
     </div>
-    <button class="mb-icon-btn" aria-label="Close browser" on:click={onClose}>{@html icons.close}</button>
+    <div class="mb-actions">
+      {#if containerPlayable && container}
+        <button class="mb-pill" on:click={() => play(container)}>
+          <span class="icon">{@html icons.play}</span>Play all
+        </button>
+      {/if}
+      <button
+        class="mb-icon-btn"
+        class:on={shuffle}
+        aria-label="Shuffle"
+        aria-pressed={shuffle}
+        title={shuffle ? 'Shuffle on' : 'Shuffle off'}
+        on:click={() => (shuffle = !shuffle)}
+      >
+        {@html icons.shuffle}
+      </button>
+      <button class="mb-icon-btn" aria-label="Close browser" on:click={onClose}>{@html icons.close}</button>
+    </div>
   </header>
 
   {#if loading}
@@ -192,6 +229,44 @@
   .mb-icon-btn :global(svg) {
     width: 22px;
     height: 22px;
+  }
+  .mb-icon-btn.on {
+    background: var(--accent, #ffb648);
+    border-color: var(--accent, #ffb648);
+    color: #14110a;
+  }
+  .mb-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+  }
+  .mb-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: var(--accent, #ffb648);
+    border: none;
+    color: #14110a;
+    font-size: 0.9rem;
+    font-weight: 620;
+    cursor: pointer;
+  }
+  .mb-pill:active {
+    transform: scale(0.98);
+  }
+  .mb-pill .icon {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+  }
+  .mb-pill .icon :global(svg) {
+    width: 16px;
+    height: 16px;
   }
   .mb-state {
     flex: 1;

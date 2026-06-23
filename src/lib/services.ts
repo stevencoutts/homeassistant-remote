@@ -40,6 +40,8 @@ export const muteCall = (id: string, mute: boolean) => call('media_player', 'vol
 export const switchToggleCall = (id: string) => call('switch', 'toggle', id);
 export const playMediaCall = (id: string, contentId: string, contentType: string) =>
   call('media_player', 'play_media', id, { media_content_id: contentId, media_content_type: contentType });
+export const shuffleCall = (id: string, shuffle: boolean) =>
+  call('media_player', 'shuffle_set', id, { shuffle });
 
 // --- Dispatcher: live HA when connected, optimistic local mutation when offline-mock ---
 function dispatch(c: ServiceCall, optimistic?: (e: EntityState) => EntityState) {
@@ -95,6 +97,23 @@ export function playFavourite(id: string, contentId: string, contentType: string
 // Neutral alias used by the media browser; same play path as favourites.
 export function playMedia(id: string, contentId: string, contentType: string) {
   dispatch(playMediaCall(id, contentId, contentType));
+}
+// Play that surfaces success/failure to the caller, so the media browser can
+// show a real error instead of swallowing it (the fire-and-forget `dispatch`
+// only logs to the console). Resolves immediately in offline-mock.
+export async function playMediaResult(id: string, contentId: string, contentType: string): Promise<void> {
+  const conn = getConnection();
+  if (!conn) return;
+  const c = playMediaCall(id, contentId, contentType);
+  await callService(conn, c.domain, c.service, c.data, c.target);
+}
+// Set shuffle on a player (Sonos: applies to the current queue). Awaitable so
+// callers can sequence it after play_media. No-op offline.
+export async function setShuffle(id: string, shuffle: boolean): Promise<void> {
+  const conn = getConnection();
+  if (!conn) return;
+  const c = shuffleCall(id, shuffle);
+  await callService(conn, c.domain, c.service, c.data, c.target);
 }
 export function mediaPrevious(id: string) { dispatch(prevCall(id)); }
 export function mediaNext(id: string) { dispatch(nextCall(id)); }
