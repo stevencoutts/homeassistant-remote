@@ -42,13 +42,18 @@ export function nextRating(current: number | undefined, action: 'up' | 'down'): 
 }
 
 // Best-effort extraction of a Plex metadata ratingKey from a media_content_id.
-// Handles `/library/metadata/12345`, `plex://track/12345` and bare numeric ids.
+// Deliberately conservative: only a clearly Plex-shaped id yields a key, so a
+// Sonos stream URL (e.g. `x-sonos-http:...flac?...&sid=9`) does NOT produce a
+// bogus key that would rate the wrong item.
 export function parseRatingKey(contentId?: string): string | null {
   if (!contentId) return null;
   const lib = contentId.match(/library\/metadata\/(\d+)/);
   if (lib) return lib[1];
-  const tail = contentId.match(/(?:^|[/:])(\d{2,})$/);
-  if (tail) return tail[1];
+  if (/^plex:/i.test(contentId)) {
+    const m = contentId.match(/(\d{2,})/);
+    if (m) return m[1];
+  }
+  if (/^\d+$/.test(contentId)) return contentId;
   return null;
 }
 
@@ -131,7 +136,23 @@ export async function resolveTrack(np: NowPlaying): Promise<TrackRating | null> 
   }
 }
 
-// Write a rating (0-10) for a track. Returns the rating applied.
+// Read the current rating for a track straight from Plex (used to confirm a
+// write actually took). Returns 0 when unrated or on lookup failure.
+export async function getRating(ratingKey: string): Promise<number> {
+  if (!(await enabled())) return mockRatings.get(ratingKey) ?? 0;
+  try {
+    const data = await plexGet<{ MediaContainer?: { Metadata?: PlexMeta[] } }>(
+      `/library/metadata/${ratingKey}`
+    );
+    return data.MediaContainer?.Metadata?.[0]?.userRating ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Write a rating (0-10) for a track, then read it back from Plex to confirm.
+// Returns the rating Plex actually holds afterwards, so the caller can tell a
+// real save from a silent no-op (e.g. a wrong rating key). Throws on HTTP error.
 export async function setRating(ratingKey: string, rating: number): Promise<number> {
   if (!(await enabled())) {
     mockRatings.set(ratingKey, rating);
@@ -144,5 +165,6 @@ export async function setRating(ratingKey: string, rating: number): Promise<numb
   });
   const res = await fetch(`/plex/:/rate?${q}`, { method: 'PUT', headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`Plex rate -> ${res.status}`);
-  return rating;
+  // Confirm: Plex returns 200 even for a key it then ignores, so verify.
+  return getRating(ratingKey);
 }

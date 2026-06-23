@@ -116,6 +116,10 @@
   // when the Plex proxy is enabled and something is actually playing. The look-up
   // is keyed on content id + title so it re-runs once per track, not per render.
   let track: TrackRating | null = null;
+  let resolving = false;
+  let busy = false;
+  let rateToast = '';
+  let rateTimer: ReturnType<typeof setTimeout>;
   let _ratingKey = '';
   $: np = {
     title: attrs.media_title as string | undefined,
@@ -128,27 +132,46 @@
     const key = ratable ? `${np.contentId ?? ''}|${np.title ?? ''}` : '';
     if (key !== _ratingKey) {
       _ratingKey = key;
-      track = null;
+      track = null; // clear the highlight at once; keep the control visible via `resolving`
       if (ratable) {
+        resolving = true;
         const want = key;
         resolveTrack(np)
-          .then((t) => { if (_ratingKey === want) track = t; })
-          .catch(() => {});
+          .then((t) => { if (_ratingKey === want) { track = t; resolving = false; } })
+          .catch(() => { if (_ratingKey === want) { track = null; resolving = false; } });
+      } else {
+        resolving = false;
       }
     }
   }
   $: thumb = thumbState(track?.userRating);
 
+  function flashRate(msg: string) {
+    rateToast = msg;
+    clearTimeout(rateTimer);
+    rateTimer = setTimeout(() => (rateToast = ''), 3500);
+  }
+
   async function rate(action: 'up' | 'down') {
-    if (!track) return;
-    const r = nextRating(track.userRating, action);
+    if (!track || busy) return;
+    busy = true;
+    const target = nextRating(track.userRating, action);
     const prev = track.userRating;
-    track = { ...track, userRating: r }; // optimistic
+    track = { ...track, userRating: target }; // optimistic
     try {
-      await setRating(track.ratingKey, r);
+      // setRating writes then reads back from Plex; `actual` is what Plex holds.
+      const actual = await setRating(track.ratingKey, target);
+      track = { ...track, userRating: actual };
+      if (actual === target) {
+        flashRate(target === 0 ? 'Rating cleared' : target >= 6 ? 'Rated up (5★)' : 'Rated down (1★)');
+      } else {
+        flashRate(`Plex didn't save it (key ${track.ratingKey})`);
+      }
     } catch (e) {
       track = { ...track, userRating: prev }; // revert on failure
-      console.error('Plex rate failed', e);
+      flashRate(`Rating failed: ${(e as Error).message}`);
+    } finally {
+      busy = false;
     }
   }
 
@@ -248,11 +271,12 @@
       <div class="a">{idle ? '' : attrs.media_artist ?? attrs.media_series_title ?? ''}</div>
       {#if attrs.source}<div class="src">{attrs.source}</div>{/if}
     </div>
-    {#if track}
+    {#if ratable && (resolving || track)}
       <div class="rate">
         <button
           class="rate-btn up"
           class:on={thumb === 'up'}
+          disabled={!track || busy}
           aria-label="Thumbs up"
           aria-pressed={thumb === 'up'}
           title="Rate up in Plex"
@@ -263,6 +287,7 @@
         <button
           class="rate-btn down"
           class:on={thumb === 'down'}
+          disabled={!track || busy}
           aria-label="Thumbs down"
           aria-pressed={thumb === 'down'}
           title="Rate down in Plex"
@@ -273,6 +298,8 @@
       </div>
     {/if}
   </div>
+
+  {#if rateToast}<div class="rate-toast">{rateToast}</div>{/if}
 
   <div class="transport">
     {#if canShuffle}
@@ -420,6 +447,24 @@
   .rate-btn.down.on {
     color: var(--red);
     border-color: var(--red);
+  }
+  .rate-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .rate-toast {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 2;
+    background: var(--panel-3);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   }
   .head-right {
     display: flex;

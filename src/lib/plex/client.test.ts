@@ -35,11 +35,13 @@ describe('parseRatingKey', () => {
   it('reads a key from a plex:// id', () => {
     expect(parseRatingKey('plex://track/12345')).toBe('12345');
   });
-  it('reads a bare trailing numeric id', () => {
-    expect(parseRatingKey('server:98765')).toBe('98765');
+  it('reads a bare numeric id', () => {
+    expect(parseRatingKey('98765')).toBe('98765');
   });
-  it('returns null for a non-Plex / Sonos URI', () => {
+  it('returns null for a non-Plex / Sonos URI (no bogus key)', () => {
     expect(parseRatingKey('x-sonos-http:track.mp3')).toBeNull();
+    expect(parseRatingKey('x-sonos-http:librarytrack.flac?sid=9&flags=8224')).toBeNull();
+    expect(parseRatingKey('server:98765')).toBeNull();
     expect(parseRatingKey(undefined)).toBeNull();
   });
 });
