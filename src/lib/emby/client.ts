@@ -356,8 +356,30 @@ export async function listPlayTargets(): Promise<PlayTarget[]> {
   return sessions.filter(isVideoClient).map(toTarget);
 }
 
+// Tell a session to stop whatever it is playing. Best-effort: failures are
+// swallowed so they never block the play that follows.
+export async function stopSession(sessionId: string): Promise<void> {
+  if (!(await enabled())) return; // mock: no-op
+  try {
+    await fetch(`/emby/Sessions/${sessionId}/Playing/Stop`, { method: 'POST' });
+  } catch {
+    /* best-effort */
+  }
+}
+
+// Delay between Stop and PlayNow so the client has settled to idle before the
+// new play arrives.
+const STOP_SETTLE_MS = 600;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export async function playChannel(sessionId: string, channelId: string): Promise<void> {
   if (!(await enabled())) return; // mock: no-op
+  // Clear any active play queue first. The Emby Apple TV client (and some
+  // others) keep the rest of a series queued; a remote PlayNow sent mid-queue
+  // can be ignored, leaving the client to roll on to the next episode instead
+  // of switching. Stopping first makes the client idle so PlayNow is honoured.
+  await stopSession(sessionId);
+  await sleep(STOP_SETTLE_MS);
   const q = new URLSearchParams({ ItemIds: channelId, PlayCommand: 'PlayNow' });
   const res = await fetch(`/emby/Sessions/${sessionId}/Playing?${q}`, { method: 'POST' });
   if (!res.ok) throw new Error(`Emby play -> ${res.status}`);
