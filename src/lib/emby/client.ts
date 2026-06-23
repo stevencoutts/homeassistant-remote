@@ -1,5 +1,14 @@
-import type { Channel, Programme, PlayTarget } from './types';
-import { mockChannels, mockGuide } from './mock';
+import type { Channel, Programme, PlayTarget, MediaItem, MediaLibrary, MediaKind } from './types';
+import {
+  mockChannels,
+  mockGuide,
+  mockLibraries,
+  mockLibraryItems,
+  mockSeasons,
+  mockEpisodes,
+  mockContinueWatching,
+  mockRecentlyAdded
+} from './mock';
 
 // Talks to Emby through the same-origin proxy (`/emby/...`); the server injects
 // the API key. When the proxy is not configured (dev, or no EMBY_* env) the
@@ -352,4 +361,184 @@ export async function playChannel(sessionId: string, channelId: string): Promise
   const q = new URLSearchParams({ ItemIds: channelId, PlayCommand: 'PlayNow' });
   const res = await fetch(`/emby/Sessions/${sessionId}/Playing?${q}`, { method: 'POST' });
   if (!res.ok) throw new Error(`Emby play -> ${res.status}`);
+}
+
+// =====================================================================
+// On-demand (films and TV series)
+// =====================================================================
+
+// Fields we request on library items so the UI has posters, runtime and resume.
+const ITEM_FIELDS = 'Overview,ProductionYear,PrimaryImageAspectRatio';
+
+// --- Pure helpers (unit-tested) ---
+
+// Build a proxied poster URL. Items with their own Primary image use it; an
+// episode that lacks one but belongs to a series falls back to the series art.
+export function posterUrl(itemId: string, maxHeight = 330): string {
+  const q = new URLSearchParams({ maxHeight: String(maxHeight), quality: '85' });
+  return `/emby/Items/${itemId}/Images/Primary?${q}`;
+}
+
+// Resume progress as a 0..100 percentage. Returns undefined when we cannot tell
+// (no runtime) so the UI can omit the bar rather than draw a misleading 0/NaN.
+export function progressPct(positionTicks?: number, runtimeTicks?: number): number | undefined {
+  if (!runtimeTicks || runtimeTicks <= 0 || positionTicks == null) return undefined;
+  const pct = (positionTicks / runtimeTicks) * 100;
+  return Math.max(0, Math.min(100, pct));
+}
+
+interface EmbyUserData {
+  PlaybackPositionTicks?: number;
+  PlayedPercentage?: number;
+}
+interface EmbyBaseItem {
+  Id: string;
+  Name?: string;
+  Type?: string; // Movie | Series | Season | Episode
+  ProductionYear?: number;
+  Overview?: string;
+  RunTimeTicks?: number;
+  UserData?: EmbyUserData;
+  SeriesId?: string;
+  SeriesName?: string;
+  ParentIndexNumber?: number;
+  IndexNumber?: number;
+  ImageTags?: { Primary?: string };
+  SeriesPrimaryImageTag?: string;
+  CollectionType?: string; // on a Views/CollectionFolder item
+}
+
+const KINDS = new Set<MediaKind>(['Movie', 'Series', 'Season', 'Episode']);
+const asKind = (t?: string): MediaKind => (KINDS.has(t as MediaKind) ? (t as MediaKind) : 'Movie');
+
+// Map an Emby BaseItem onto the normalised MediaItem. The poster prefers the
+// item's own Primary image; an episode without one falls back to its series art.
+export function mapItem(it: EmbyBaseItem): MediaItem {
+  const kind = asKind(it.Type);
+  const hasOwnPoster = Boolean(it.ImageTags?.Primary);
+  let poster: string | undefined;
+  if (hasOwnPoster) poster = posterUrl(it.Id);
+  else if (kind === 'Episode' && it.SeriesId && it.SeriesPrimaryImageTag) poster = posterUrl(it.SeriesId);
+
+  const pos = it.UserData?.PlaybackPositionTicks;
+  return {
+    id: it.Id,
+    kind,
+    name: it.Name ?? '',
+    poster,
+    year: it.ProductionYear,
+    overview: it.Overview,
+    runtimeTicks: it.RunTimeTicks,
+    resumePositionTicks: pos,
+    progressPct: progressPct(pos, it.RunTimeTicks),
+    seriesId: it.SeriesId,
+    seriesName: it.SeriesName,
+    parentIndexNumber: it.ParentIndexNumber,
+    indexNumber: it.IndexNumber
+  };
+}
+
+const collectionKind = (c?: string): MediaLibrary['kind'] | null =>
+  c === 'movies' ? 'movies' : c === 'tvshows' ? 'tvshows' : null;
+
+export function buildResumeUrl(userId: string): string {
+  const q = new URLSearchParams({
+    UserId: userId,
+    MediaTypes: 'Video',
+    Limit: '24',
+    Recursive: 'true',
+    Fields: ITEM_FIELDS
+  });
+  return `/Users/${userId}/Items/Resume?${q}`;
+}
+
+export function buildLatestUrl(userId: string): string {
+  const q = new URLSearchParams({ Limit: '24', Fields: ITEM_FIELDS });
+  return `/Users/${userId}/Items/Latest?${q}`;
+}
+
+export function buildLibraryItemsUrl(userId: string, parentId: string): string {
+  const q = new URLSearchParams({
+    ParentId: parentId,
+    SortBy: 'SortName',
+    SortOrder: 'Ascending',
+    Recursive: 'false',
+    Fields: ITEM_FIELDS
+  });
+  return `/Users/${userId}/Items?${q}`;
+}
+
+export function buildSeasonsUrl(userId: string, seriesId: string): string {
+  const q = new URLSearchParams({ UserId: userId });
+  return `/Shows/${seriesId}/Seasons?${q}`;
+}
+
+export function buildEpisodesUrl(userId: string, seriesId: string, seasonId: string): string {
+  const q = new URLSearchParams({ UserId: userId, SeasonId: seasonId, Fields: ITEM_FIELDS });
+  return `/Shows/${seriesId}/Episodes?${q}`;
+}
+
+// --- Live calls ---
+
+export async function getLibraries(): Promise<MediaLibrary[]> {
+  if (!(await enabled())) return mockLibraries();
+  const uid = await getUserId();
+  if (!uid) return [];
+  const data = await embyGet<{ Items?: EmbyBaseItem[] }>(`/Users/${uid}/Views`);
+  const out: MediaLibrary[] = [];
+  for (const it of data.Items ?? []) {
+    const k = collectionKind(it.CollectionType);
+    if (k) out.push({ id: it.Id, name: it.Name ?? k, kind: k });
+  }
+  return out;
+}
+
+export async function getContinueWatching(): Promise<MediaItem[]> {
+  if (!(await enabled())) return mockContinueWatching();
+  const uid = await getUserId();
+  if (!uid) return [];
+  const data = await embyGet<{ Items?: EmbyBaseItem[] }>(buildResumeUrl(uid));
+  return (data.Items ?? []).map(mapItem);
+}
+
+export async function getRecentlyAdded(): Promise<MediaItem[]> {
+  if (!(await enabled())) return mockRecentlyAdded();
+  const uid = await getUserId();
+  if (!uid) return [];
+  // /Items/Latest returns a bare array, not an { Items } envelope.
+  const data = await embyGet<EmbyBaseItem[]>(buildLatestUrl(uid));
+  return (Array.isArray(data) ? data : []).map(mapItem);
+}
+
+export async function getLibraryItems(
+  parentId: string,
+  kind: 'movies' | 'tvshows'
+): Promise<MediaItem[]> {
+  if (!(await enabled())) return mockLibraryItems(kind);
+  const uid = await getUserId();
+  if (!uid) return [];
+  const data = await embyGet<{ Items?: EmbyBaseItem[] }>(buildLibraryItemsUrl(uid, parentId));
+  return (data.Items ?? []).map(mapItem);
+}
+
+export async function getSeasons(seriesId: string): Promise<MediaItem[]> {
+  if (!(await enabled())) return mockSeasons(seriesId);
+  const uid = await getUserId();
+  if (!uid) return [];
+  const data = await embyGet<{ Items?: EmbyBaseItem[] }>(buildSeasonsUrl(uid, seriesId));
+  return (data.Items ?? []).map(mapItem);
+}
+
+export async function getEpisodes(seriesId: string, seasonId: string): Promise<MediaItem[]> {
+  if (!(await enabled())) return mockEpisodes(seriesId, seasonId);
+  const uid = await getUserId();
+  if (!uid) return [];
+  const data = await embyGet<{ Items?: EmbyBaseItem[] }>(buildEpisodesUrl(uid, seriesId, seasonId));
+  return (data.Items ?? []).map(mapItem);
+}
+
+// Play an on-demand item (film or episode) on a session. Same POST shape as
+// playChannel; named separately for call-site clarity.
+export async function playItem(sessionId: string, itemId: string): Promise<void> {
+  return playChannel(sessionId, itemId);
 }

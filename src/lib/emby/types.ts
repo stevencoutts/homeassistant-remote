@@ -24,3 +24,34 @@ export interface PlayTarget {
   // Stored in localStorage so we never have to guess which session is which again.
   deviceId?: string;
 }
+
+// --- On-demand (films and TV series) ---
+
+export type MediaKind = 'Movie' | 'Series' | 'Season' | 'Episode';
+
+// A normalised library item the VOD browser renders. Mapped from Emby's BaseItem
+// in client.ts so components never see raw Emby field names.
+export interface MediaItem {
+  id: string;
+  kind: MediaKind;
+  name: string;
+  poster?: string; // proxied /emby image URL, or undefined
+  year?: number;
+  overview?: string;
+  // Resume / progress
+  runtimeTicks?: number; // Emby ticks (1e7 = 1 second)
+  resumePositionTicks?: number;
+  progressPct?: number; // 0..100, derived; drives the progress bar
+  // Episode / season context
+  seriesId?: string;
+  seriesName?: string;
+  parentIndexNumber?: number; // season number (for an episode)
+  indexNumber?: number; // episode number within the season
+}
+
+// A top-level Emby library view we offer for browsing.
+export interface MediaLibrary {
+  id: string; // Emby CollectionFolder Id (ParentId for its items)
+  name: string;
+  kind: 'movies' | 'tvshows';
+}

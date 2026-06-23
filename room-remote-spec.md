@@ -111,6 +111,19 @@ Each card type renders only if the room config includes entities of that type.
   `media_player.play_media` (no source-specific id construction). Runs against a
   mock tree with no HA connection. See
   `docs/superpowers/specs/2026-06-23-media-browser-design.md`.
+- Emby Live TV (rooms with a TV/AV player): a **TV Guide** button opens a
+  full-screen EPG over Emby's Live TV API and plays a channel on the room's
+  device. Emby is reached through a same-origin `/emby` proxy that injects the
+  API key server-side (no key in the browser); session matching routes playback
+  to the correct room device (IP, stable DeviceId binding, name hint,
+  wake-and-retry, verify-and-correct). Falls back to mock data when Emby is off.
+- Emby on-demand (same rooms): a **Films & TV** button opens a full-screen
+  browser of the Emby library, with a Continue Watching row (resume with a
+  progress bar), a Recently Added row, and A-to-Z browse of the Movies and TV
+  Series libraries (series drill into seasons and episodes). Browse only, no
+  search in v1. Plays the chosen film or episode on the room's device using the
+  same session-matching as the TV Guide, and renders a mock library when Emby is
+  off. See `docs/superpowers/specs/2026-06-23-emby-vod-browser-design.md`.
 
 **Covers**
 

@@ -17,6 +17,7 @@
   import { loadFavourites, type Favourite } from '$lib/ha/favourites';
   import EpgGuide from './EpgGuide.svelte';
   import MediaBrowser from './MediaBrowser.svelte';
+  import MediaVodBrowser from './MediaVodBrowser.svelte';
   import type { NamedEntity } from '$lib/types';
 
   export let players: NamedEntity[];
@@ -40,6 +41,7 @@
   })();
   let showGuide = false;
   let showBrowser = false;
+  let showVod = false;
 
   // Close overlays whenever the room changes (players come from a different room).
   // MediaCard is not keyed so the same instance receives new props on room switch;
@@ -51,6 +53,7 @@
     if (_prevPlayersKey !== '' && key !== _prevPlayersKey) {
       showGuide = false;
       showBrowser = false;
+      showVod = false;
     }
     _prevPlayersKey = key;
   }
@@ -280,6 +283,9 @@
         <button class="guide-btn" on:click={() => (showGuide = true)}>
           <span class="icon">{@html icons.tv}</span>TV Guide
         </button>
+        <button class="guide-btn" on:click={() => (showVod = true)}>
+          <span class="icon">{@html icons.film}</span>Films & TV
+        </button>
       {/if}
       <div class="status">{idle ? 'idle' : playing ? 'playing' : 'paused'}</div>
     </div>
@@ -439,6 +445,16 @@
     entity={browseSonos}
     playTarget={browseTarget ?? browseSonos}
     onClose={() => (showBrowser = false)}
+  />
+{/if}
+
+{#if showVod}
+  <MediaVodBrowser
+    appleTvHint={appleTv?.name ?? ''}
+    appleTvEntity={appleTv?.entity ?? ''}
+    appleTvIp={appleTv?.ip ?? ''}
+    {embySource}
+    onClose={() => (showVod = false)}
   />
 {/if}
 

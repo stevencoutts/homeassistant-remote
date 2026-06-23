@@ -1,4 +1,4 @@
-import type { Channel, Programme } from './types';
+import type { Channel, Programme, MediaItem, MediaLibrary } from './types';
 
 // Offline fixture so the EPG grid renders (and is testable) without a live Emby.
 // Generates back-to-back programmes per channel across the visible window.
@@ -56,4 +56,97 @@ export function mockGuide(startMs: number, endMs: number): Programme[] {
     }
   }
   return out;
+}
+
+// --- On-demand (films and TV series) fixtures ---
+// Offline data so the VOD browser renders and is testable with no live Emby.
+
+export function mockLibraries(): MediaLibrary[] {
+  return [
+    { id: 'lib-movies', name: 'Films', kind: 'movies' },
+    { id: 'lib-tv', name: 'TV Series', kind: 'tvshows' }
+  ];
+}
+
+const MOVIES: MediaItem[] = [
+  { id: 'm1', kind: 'Movie', name: 'The Quiet Coast', year: 2021, runtimeTicks: 6_600_000_000_000 },
+  { id: 'm2', kind: 'Movie', name: 'Northern Lights', year: 2019, runtimeTicks: 7_200_000_000_000 },
+  { id: 'm3', kind: 'Movie', name: 'Paper Aeroplanes', year: 2023, runtimeTicks: 5_400_000_000_000 },
+  { id: 'm4', kind: 'Movie', name: 'The Long Drive Home', year: 2020, runtimeTicks: 6_000_000_000_000 },
+  { id: 'm5', kind: 'Movie', name: 'Salt and Stone', year: 2024, runtimeTicks: 7_800_000_000_000 },
+  { id: 'm6', kind: 'Movie', name: 'A Winter in Vienna', year: 2018, runtimeTicks: 6_900_000_000_000 }
+];
+
+const SERIES: MediaItem[] = [
+  { id: 's1', kind: 'Series', name: 'Harbour Lights', year: 2022 },
+  { id: 's2', kind: 'Series', name: 'The Cartographer', year: 2021 },
+  { id: 's3', kind: 'Series', name: 'Glasshouse', year: 2024 }
+];
+
+// Two seasons per series, three episodes per season.
+function seasonsFor(seriesId: string): MediaItem[] {
+  const series = SERIES.find((s) => s.id === seriesId);
+  return [1, 2].map((n) => ({
+    id: `${seriesId}-s${n}`,
+    kind: 'Season' as const,
+    name: `Series ${n}`,
+    seriesId,
+    seriesName: series?.name,
+    indexNumber: n
+  }));
+}
+
+function episodesFor(seriesId: string, seasonId: string): MediaItem[] {
+  const series = SERIES.find((s) => s.id === seriesId);
+  const seasonNo = Number(seasonId.split('-s')[1] ?? 1);
+  return [1, 2, 3].map((n) => {
+    // Make the first episode of the first season part-watched for the progress bar.
+    const inProgress = seasonId.endsWith('-s1') && n === 1;
+    return {
+      id: `${seasonId}-e${n}`,
+      kind: 'Episode' as const,
+      name: `Episode ${n}`,
+      seriesId,
+      seriesName: series?.name,
+      parentIndexNumber: seasonNo,
+      indexNumber: n,
+      runtimeTicks: 3_000_000_000_000,
+      ...(inProgress ? { resumePositionTicks: 1_200_000_000_000, progressPct: 40 } : {})
+    };
+  });
+}
+
+export function mockLibraryItems(kind: 'movies' | 'tvshows'): MediaItem[] {
+  return (kind === 'movies' ? MOVIES : SERIES).map((i) => ({ ...i }));
+}
+
+export function mockSeasons(seriesId: string): MediaItem[] {
+  return seasonsFor(seriesId);
+}
+
+export function mockEpisodes(seriesId: string, seasonId: string): MediaItem[] {
+  return episodesFor(seriesId, seasonId);
+}
+
+export function mockContinueWatching(): MediaItem[] {
+  return [
+    { ...MOVIES[1], resumePositionTicks: 2_880_000_000_000, progressPct: 40 },
+    {
+      id: 's1-s1-e1',
+      kind: 'Episode',
+      name: 'Episode 1',
+      seriesId: 's1',
+      seriesName: 'Harbour Lights',
+      parentIndexNumber: 1,
+      indexNumber: 1,
+      runtimeTicks: 3_000_000_000_000,
+      resumePositionTicks: 1_200_000_000_000,
+      progressPct: 40
+    },
+    { ...MOVIES[3], resumePositionTicks: 4_800_000_000_000, progressPct: 80 }
+  ];
+}
+
+export function mockRecentlyAdded(): MediaItem[] {
+  return [MOVIES[4], SERIES[2], MOVIES[2], SERIES[1]].map((i) => ({ ...i }));
 }
